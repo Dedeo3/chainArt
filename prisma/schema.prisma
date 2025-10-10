@@ -1,0 +1,64 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  // output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleName {
+  USER
+  ADMIN
+}
+
+enum PostStatus {
+  PENDING    
+  APPROVED   
+  REJECTED   
+}
+
+model user {
+  id            Int        @id @default(autoincrement()) 
+  walletAddress String     @unique
+  username      String     @unique
+  contact       String     @unique
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime    @updatedAt
+  role          RoleName   @default(USER) // Defaultnya adalah USER
+  karyas        Karya[]
+}
+
+model Karya {
+  id            Int         @id @default(autoincrement())
+
+  // Data dari Request:
+  // walletAddress String     
+  createdAt     DateTime    @default(now())
+  contact       String?    
+  creator       String      
+  
+  // Status Persetujuan
+  status        PostStatus  @default(PENDING) 
+  updatedAt     DateTime    @updatedAt
+  
+  address       String?    
+  media         String     
+  title         String
+  category      String?    
+  description   String?
+  makna         String?     
+  
+  // Relasi ke User (creator)
+  authorId      Int 
+  
+  // Field untuk mengakses data User (relasi)
+  author        user        @relation(fields: [authorId], references: [id])
+}
