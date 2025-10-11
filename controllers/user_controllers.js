@@ -369,3 +369,64 @@ export const getApprovedKarya = async (req, res) => {
         return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
     }
 };
+
+export const searchKaryaByTitle = async (req, res) => {
+    // Ambil query pencarian dari req.query.title (contoh: /api/karya/search?title=lukisan)
+    const searchQuery = req.query.title;
+
+    if (!searchQuery) {
+        return res.status(400).json({ error: 'Query pencarian "title" harus disediakan.' });
+    }
+
+    try {
+        const searchResults = await prisma.karya.findMany({
+            where: {
+                // Mencari title yang mengandung searchQuery. 
+                // mode: 'insensitive' membuat pencarian tidak case-sensitive (huruf besar/kecil diabaikan).
+                title: {
+                    contains: searchQuery,
+                    mode: 'insensitive',
+                },
+                status: 'APPROVED' 
+            },
+            include: {
+                author: {
+                    select: {
+                        walletAddress: true,
+                        contact: true,
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: 'desc',
+            }
+        });
+
+        // 3. Format Response: Lakukan mapping untuk setiap item agar sesuai format yang diinginkan
+        const responseData = searchResults.map(karya => ({
+            id: karya.id,
+
+            // Data dari relasi author
+            walletAddress: karya.author.walletAddress,
+            contact: karya.author.contact,
+
+            creator: karya.creator,
+            status: karya.status,
+            address: karya.address,
+            media: karya.media,
+            title: karya.title,
+            category: karya.category,
+            description: karya.description,
+            makna: karya.makna,
+            authorId: karya.authorId,
+            createdAt: karya.createdAt,
+            updatedAt: karya.updatedAt,
+        }));
+        
+        return res.status(200).json(responseData);
+
+    } catch (error) {
+        console.error('Error saat mencari karya:', error);
+        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
+    }
+};
