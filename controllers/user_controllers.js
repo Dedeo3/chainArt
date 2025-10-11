@@ -11,7 +11,7 @@ export const createProfile = async (req, res) => {
         const newUser = await prisma.user.create({
             data: {
                 walletAddress: walletAddress,
-                username: username,
+                username: username.toLowerCase(),
                 contact: contact,
                 // role otomatis 'USER'
             },
@@ -126,6 +126,91 @@ export const getProfile = async (req, res) => {
 
     } catch (error) {
         console.error('Error saat mengambil profile:', error);
+        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
+    }
+};
+
+export const submitKarya = async (req, res) => {
+    const {
+        creator,
+        address,
+        media,
+        title,
+        category,
+        description,
+        makna,
+        authorId
+    } = req.body;
+
+    // Validasi Wajib
+    if (!creator || !media || !title || !authorId) {
+        return res.status(400).json({ error: "Data wajib (creator, media, title, authorId) harus diisi." });
+    }
+
+    
+    const parsedAuthorId = parseInt(authorId);
+    if (isNaN(parsedAuthorId)) {
+        return res.status(400).json({ error: "authorId harus berupa angka." });
+    }
+
+    try {
+        const createdKarya = await prisma.karya.create({
+            data: {
+                creator,
+                address,
+                media,
+                title,
+                category,
+                description,
+                makna,
+                authorId: parsedAuthorId,
+            },
+        });
+
+        // Ambil data Karya yang baru dibuat beserta relasi author (untuk mendapatkan walletAddress)
+        const karyaWithAuthor = await prisma.karya.findUnique({
+            where: { id: createdKarya.id },
+            include: {
+                author: {
+                    select: {
+                        walletAddress: true,
+                        contact:true,
+                    }
+                }
+            }
+        });
+
+        // Format Response
+        const responseData = {
+            id: karyaWithAuthor.id,
+            walletAddress: karyaWithAuthor.author.walletAddress,
+            contact:karyaWithAuthor.author.contact, 
+            creator: karyaWithAuthor.creator,
+            status: karyaWithAuthor.status,
+            address: karyaWithAuthor.address,
+            media: karyaWithAuthor.media,
+            title: karyaWithAuthor.title,
+            category: karyaWithAuthor.category,
+            description: karyaWithAuthor.description,
+            makna: karyaWithAuthor.makna,
+            authorId: karyaWithAuthor.authorId,
+            createdAt: karyaWithAuthor.createdAt,
+            updatedAt: karyaWithAuthor.updatedAt,
+        };
+
+        return res.status(201).json(responseData);
+
+    } catch (error) {
+        // P2003: Foreign Key Constraint Error (authorId tidak ditemukan)
+        if (error.code === 'P2003') {
+            return res.status(404).json({ error: `User (authorId: ${parsedAuthorId}) tidak ditemukan atau tidak valid.` });
+        }
+        // Penanganan error Unique Constraint P2002
+        if (error.code === 'P2002') {
+            return res.status(409).json({ error: 'Data yang Anda masukkan sudah terdaftar atau terduplikasi.' });
+        }
+
+        console.error('Error saat membuat karya:', error);
         return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
     }
 };

@@ -1,5 +1,5 @@
 import express from 'express';
-import { createProfile, updateProfile, getProfile } from '../controllers/user_controllers.js'; // Import fungsi spesifik
+import { createProfile, updateProfile, getProfile, submitKarya } from '../controllers/user_controllers.js'; // Import fungsi spesifik
 
 const router = express.Router();
 
@@ -9,5 +9,6 @@ router.post('/profile', createProfile);
 router.patch('/profile/:id', updateProfile);
 // Endpoint GET /api/profile/:id untuk mengambil profil
 router.get('/profile/:id', getProfile);
+router.post('/submit-karya', submitKarya)
 
 export default router;
