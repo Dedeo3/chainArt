@@ -214,3 +214,58 @@ export const submitKarya = async (req, res) => {
         return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
     }
 };
+
+export const getKaryaById = async (req, res) => {
+    const karyaId = parseInt(req.params.id);
+
+    // Validasi ID
+    if (isNaN(karyaId)) {
+        return res.status(400).json({ error: 'ID Karya tidak valid atau harus berupa angka.' });
+    }
+
+    try {
+   
+        const karyaWithAuthor = await prisma.karya.findUnique({
+            where: { id: karyaId },
+            include: {
+                author: {
+                    select: {
+                        walletAddress: true,
+                        contact: true,
+                    }
+                }
+            }
+        });
+
+        // Cek jika Karya tidak ditemukan
+        if (!karyaWithAuthor) {
+            return res.status(404).json({ error: `Karya dengan ID ${karyaId} tidak ditemukan.` });
+        }
+
+        const responseData = {
+            id: karyaWithAuthor.id,
+
+            // Diambil dari relasi author
+            walletAddress: karyaWithAuthor.author.walletAddress,
+            contact: karyaWithAuthor.author.contact,
+
+            creator: karyaWithAuthor.creator,
+            status: karyaWithAuthor.status,
+            address: karyaWithAuthor.address,
+            media: karyaWithAuthor.media,
+            title: karyaWithAuthor.title,
+            category: karyaWithAuthor.category,
+            description: karyaWithAuthor.description,
+            makna: karyaWithAuthor.makna,
+            authorId: karyaWithAuthor.authorId,
+            createdAt: karyaWithAuthor.createdAt,
+            updatedAt: karyaWithAuthor.updatedAt,
+        };
+
+        return res.status(200).json(responseData);
+
+    } catch (error) {
+        console.error('Error saat mengambil karya:', error);
+        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
+    }
+};
