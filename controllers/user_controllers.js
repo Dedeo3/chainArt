@@ -269,3 +269,103 @@ export const getKaryaById = async (req, res) => {
         return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
     }
 };
+
+export const getPendingKarya = async (req, res) => {
+    try {
+        const pendingKaryaList = await prisma.karya.findMany({
+            where: {
+                status: 'PENDING',
+            },
+            //sertakan data author untuk mendapatkan walletAddress dan contact
+            include: {
+                author: {
+                    select: {
+                        walletAddress: true,
+                        contact: true,
+                    }
+                }
+            },
+            // Urutkan berdasarkan tanggal terbaru
+            orderBy: {
+                createdAt: 'desc',
+            }
+        });
+
+        // Format Response: Lakukan mapping untuk setiap item agar sesuai format 
+        const responseData = pendingKaryaList.map(karya => ({
+            id: karya.id,
+
+            // Data dari relasi author
+            walletAddress: karya.author.walletAddress,
+            contact: karya.author.contact,
+
+            creator: karya.creator,
+            status: karya.status,
+            address: karya.address,
+            media: karya.media,
+            title: karya.title,
+            category: karya.category,
+            description: karya.description,
+            makna: karya.makna,
+            authorId: karya.authorId,
+            createdAt: karya.createdAt,
+            updatedAt: karya.updatedAt,
+        }));
+
+        return res.status(200).json(responseData);
+
+    } catch (error) {
+        console.error('Error saat mengambil daftar karya pending:', error);
+        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
+    }
+};
+
+export const getApprovedKarya = async (req, res) => {
+    try {
+        const approvedKaryaList = await prisma.karya.findMany({
+            where: {
+                status: 'APPROVED',
+            },
+            //sertakan data author untuk mendapatkan walletAddress dan contact
+            include: {
+                author: {
+                    select: {
+                        walletAddress: true,
+                        contact: true,
+                    }
+                }
+            },
+            // Urutkan berdasarkan tanggal terbaru
+            orderBy: {
+                createdAt: 'desc',
+            }
+        });
+
+        // Format Response: Lakukan mapping untuk setiap item agar sesuai format 
+        const responseData = approvedKaryaList.map(karya => ({
+            id: karya.id,
+
+            // Data dari relasi author
+            walletAddress: karya.author.walletAddress,
+            contact: karya.author.contact,
+
+            creator: karya.creator,
+            status: karya.status,
+            address: karya.address,
+            media: karya.media,
+            title: karya.title,
+            category: karya.category,
+            description: karya.description,
+            makna: karya.makna,
+            authorId: karya.authorId,
+            createdAt: karya.createdAt,
+            updatedAt: karya.updatedAt,
+        }));
+
+        return res.status(200).json(responseData);
+
+    } catch (error) {
+        console.error('Error saat mengambil daftar karya approved:', error);
+        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
+    }
+};

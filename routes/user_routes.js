@@ -1,5 +1,5 @@
 import express from 'express';
-import { createProfile, updateProfile, getProfile, submitKarya, getKaryaById } from '../controllers/user_controllers.js'; // Import fungsi spesifik
+import { createProfile, updateProfile, getProfile, submitKarya, getKaryaById,getPendingKarya, getApprovedKarya } from '../controllers/user_controllers.js'; // Import fungsi spesifik
 
 const router = express.Router();
 
@@ -11,5 +11,7 @@ router.patch('/profile/:id', updateProfile);
 router.get('/profile/:id', getProfile);
 router.post('/submit-karya', submitKarya)
 router.get('/karya/:id', getKaryaById)
+router.get('/karya-pending', getPendingKarya)
+router.get('/karya-approved', getApprovedKarya)
 
 export default router;
