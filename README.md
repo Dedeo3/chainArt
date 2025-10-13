@@ -132,7 +132,6 @@ Response
   "contact": "evan@gmail.com",
   "createdAt": "2025-10-10T17:27:09.145Z",
   "role": "CREATOR",
-  "approveTocreator":true
 }
 ```
 
