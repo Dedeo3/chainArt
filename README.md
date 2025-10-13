@@ -130,7 +130,7 @@ Request
 ```json
 {
     "id":1,
-    "approveTocreator":false
+    "adminId":2
 }
 ```
 Response
