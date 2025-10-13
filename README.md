@@ -21,7 +21,7 @@ Documentation for handles features in chainArt
 
 #### Add profile
 
-```http
+```
   POST api/profile 
 ```
 Request
