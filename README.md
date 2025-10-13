@@ -68,7 +68,7 @@ Response
 
 #### Get profile
 ```
-  GET /profile/{id}
+  GET api/profile/{id}
 ```
 Response
 ```json
@@ -85,7 +85,7 @@ Response
 #### request role creator 
 
 ```
-  POST /profile/creator-request
+  POST api/profile/creator-request
 ```
 Request
 ```json
@@ -106,7 +106,7 @@ Response
 
 #### Get List of request creator
 ```
-  GET /profile/creator-request
+  GET api/profile/creator-request
 ```
 Response
 ```json
@@ -124,7 +124,7 @@ Response
 #### ACC role creator by admin
 
 ```
-  PATCH /profile/creator-request
+  PATCH api/profile/creator-request
 ```
 Request
 ```json
@@ -145,7 +145,7 @@ Response
 
 #### Get List of creator
 ```
-  GET /profile/creator
+  GET api/profile/creator
 ```
 Response
 ```json
