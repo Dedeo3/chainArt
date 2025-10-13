@@ -17,6 +17,7 @@ datasource db {
 enum RoleName {
   USER
   ADMIN
+  CREATOR
 }
 
 enum PostStatus {
