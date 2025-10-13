@@ -43,7 +43,7 @@ Response
 
 #### Update profile
 
-```http
+```
   PATCH api/profile/{id}
 ```
 Request
@@ -67,7 +67,7 @@ Response
 
 
 #### Get profile
-```http
+```
   GET /profile/{id}
 ```
 Response
@@ -83,7 +83,7 @@ Response
 ```
 
 #### Get List of request creator
-```http
+```
   GET /profile/creator-request
 ```
 Response
@@ -100,7 +100,7 @@ Response
 ```
 
 #### Get List of creator
-```http
+```
   GET /profile/creator
 ```
 Response
@@ -118,7 +118,7 @@ Response
 
 #### Submit karya
 
-```http
+```
   POST api/submit-karya
 ```
 Request
@@ -159,7 +159,7 @@ Response
 
 #### Get karya by id
 
-```http
+```
   GET api/karya/{id}
 ```
 Response
@@ -186,7 +186,7 @@ Response
 
 #### Get pending karya 
 
-```http
+```
   GET api/karya-pending
 ```
 Response
@@ -213,7 +213,7 @@ Response
 
 #### approved karya by admin
 
-```http
+```
   POST api/karya/approved
 ```
 Request
@@ -235,7 +235,7 @@ Response
 
 #### Get approved karya 
 
-```http
+```
   GET api/karya-approved
 ```
 Response
@@ -262,7 +262,7 @@ Response
 
 #### Search approved karya
 
-```http
+```
   GET api/karya/search
   make query contoh /api/karya/search?title=tes
 ```
@@ -294,8 +294,7 @@ Response
 
 
 ## Deployment
-
-
+### Domain
 ```bash
   https://chain-art.vercel.app/
 ```
