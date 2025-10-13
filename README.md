@@ -108,6 +108,7 @@ Request
 ```json
 {
     "id":1,
+    "approveTocreator":false
 }
 ```
 Response
