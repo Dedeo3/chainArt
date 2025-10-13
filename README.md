@@ -99,6 +99,26 @@ Response
 }
 ```
 
+#### approved karya by admin
+
+```
+  POST /profile/creator-request
+```
+Request
+```json
+{
+    "id":1,
+}
+```
+Response
+```json
+{
+	"id": 1,
+    "updatesAt":"adfdfsa", 
+    "role":"CREATOR" 
+}
+```
+
 #### Get List of creator
 ```
   GET /profile/creator
@@ -111,7 +131,7 @@ Response
   "username": "EVAN",
   "contact": "evan@gmail.com",
   "createdAt": "2025-10-10T17:27:09.145Z",
-  "role": "CREATOR"
+  "role": "CREATOR",
   "approveTocreator":true
 }
 ```
