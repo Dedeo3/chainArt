@@ -99,7 +99,7 @@ Response
 }
 ```
 
-#### approved karya by admin
+#### approved role creator by admin
 
 ```
   POST /profile/creator-request
