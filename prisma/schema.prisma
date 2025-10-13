@@ -57,7 +57,7 @@ model Karya {
   makna       String?
   hak_cipta   String?
   licency     String?
-  verified    Boolean?
+  verified    Boolean @default(false)
 
   // Relasi ke User (creator)
   authorId Int
