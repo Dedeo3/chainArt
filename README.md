@@ -82,6 +82,28 @@ Response
 }
 ```
 
+#### request role creator 
+
+```
+  POST /profile/creator-request
+```
+Request
+```json
+{
+    "id":1,
+    "approveTocreator":false
+}
+```
+Response
+```json
+{
+	"id": 1,
+    "updatesAt":"adfdfsa", 
+    "role":"USER",
+    "approveTocreator":false 
+}
+```
+
 #### Get List of request creator
 ```
   GET /profile/creator-request
@@ -99,10 +121,10 @@ Response
 }
 ```
 
-#### approved role creator by admin
+#### ACC role creator by admin
 
 ```
-  POST /profile/creator-request
+  PATCH /profile/creator-request
 ```
 Request
 ```json
