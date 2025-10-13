@@ -430,3 +430,80 @@ export const searchKaryaByTitle = async (req, res) => {
         return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
     }
 };
+
+export const requestCreator = async (req, res) => {
+    
+    const { id, approveTocreator } = req.body;
+
+    if (!id) {
+        return res.status(400).json({ error: "ID user harus disediakan." });
+    }
+
+    
+    const userId = parseInt(id);
+    if (isNaN(userId)) {
+        return res.status(400).json({ error: "ID user tidak valid." });
+    }
+
+   
+    if (approveTocreator !== false) {
+        return res.status(400).json({ error: "Permintaan harus menyertakan \"approveTocreator\": false." });
+    }
+
+    try {
+      
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                approveTocreator: false // Set ke FALSE sesuai requirement request
+            },
+           
+            select: {
+                id: true,
+                updatedAt: true, // Menggunakan updatedAt untuk 'updatesAt'
+                role: true,
+                approveTocreator: true
+            }
+        });
+
+      
+        return res.status(200).json(updatedUser);
+
+    } catch (error) {
+        
+        if (error.code === 'P2025') {
+            return res.status(404).json({ error: `User dengan ID ${userId} tidak ditemukan.` });
+        }
+
+        console.error('Error saat request role creator:', error);
+        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
+    }
+};
+
+export const getCreatorRequests = async (req, res) => {
+    try {
+     
+        const creatorRequests = await prisma.user.findMany({
+            where: {
+                approveTocreator: false,
+            },
+          
+            select: {
+                id: true,
+                walletAddress: true,
+                username: true,
+                contact: true,
+                createdAt: true,
+                role: true,
+                approveTocreator: true,
+            },
+        });
+
+       
+        return res.status(200).json(creatorRequests);
+
+    } catch (error) {
+        console.error('Error getting creator requests list:', error);
+        return res.status(500).json({ error: 'Terjadi kesalahan server internal saat mengambil daftar permintaan creator.' });
+    }
+};
