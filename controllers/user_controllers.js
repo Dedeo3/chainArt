@@ -507,3 +507,60 @@ export const getCreatorRequests = async (req, res) => {
         return res.status(500).json({ error: 'Terjadi kesalahan server internal saat mengambil daftar permintaan creator.' });
     }
 };
+
+export const accToCreator = async (req, res) => {
+    const { id, adminId } = req.body;
+
+    // Validasi 
+    if (!id || !adminId) {
+        return res.status(400).json({ error: "ID target dan ID Admin harus disediakan." });
+    }
+
+    const userId = parseInt(id);
+    const adminCheckerId = parseInt(adminId);
+
+    if (isNaN(userId) || isNaN(adminCheckerId)) {
+        return res.status(400).json({ error: "ID yang diberikan tidak valid." });
+    }
+
+    try {
+      
+        const adminUser = await prisma.user.findUnique({
+            where: { id: adminCheckerId },
+            select: { role: true }
+        });
+
+        if (!adminUser || adminUser.role !== 'ADMIN') {
+            // Jika user tidak ditemukan atau bukan ADMIN, tolak akses
+            return res.status(403).json({ error: 'Akses Ditolak: Hanya user dengan role ADMIN yang dapat melakukan persetujuan.' });
+        }
+
+        // Update record user: Ubah role menjadi CREATOR dan set approveTocreator menjadi TRUE
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                role: 'CREATOR',              // Mengubah role
+                approveTocreator: true        // Menyetujui
+            },
+            //Select fields untuk format response 
+            select: {
+                id: true,
+                updatedAt: true,
+                role: true,
+                approveTocreator: true
+            }
+        });
+
+       
+        return res.status(200).json(updatedUser);
+
+    } catch (error) {
+  
+        if (error.code === 'P2025') {
+            return res.status(404).json({ error: `User dengan ID ${userId} tidak ditemukan untuk diubah statusnya.` });
+        }
+
+        console.error('Error saat acc role creator:', error);
+        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
+    }
+};

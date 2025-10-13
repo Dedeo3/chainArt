@@ -1,5 +1,5 @@
 import express from 'express';
-import { createProfile, updateProfile, getProfile, submitKarya, getKaryaById, getPendingKarya, getApprovedKarya, searchKaryaByTitle, requestCreator, getCreatorRequests } from '../controllers/user_controllers.js'; // Import fungsi spesifik
+import { createProfile, updateProfile, getProfile, submitKarya, getKaryaById, getPendingKarya, getApprovedKarya, searchKaryaByTitle, requestCreator, getCreatorRequests, accToCreator } from '../controllers/user_controllers.js'; // Import fungsi spesifik
 
 const router = express.Router();
 
@@ -23,6 +23,9 @@ router.post('/profile', createProfile);
 router.post('/submit-karya', submitKarya)
 
 router.post('/profile/creator-request', requestCreator)
+
+// endpoint acc creator
+router.patch('/profile/creator-request', accToCreator)
 
 // Endpoint POST /api/profile/{id} untuk update profile
 router.patch('/profile/:id', updateProfile);
