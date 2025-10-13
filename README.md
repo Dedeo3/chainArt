@@ -37,7 +37,7 @@ Response
 {
 	"id": 1,
     "role":"USER",
-    "createdAt:"ahfdsjkafd"
+    "createdAt":"ahfdsjkafd"
 }
 ```
 
