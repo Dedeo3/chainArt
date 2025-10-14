@@ -130,6 +130,37 @@ export const getProfile = async (req, res) => {
     }
 };
 
+export const getUsers = async (req, res) => {
+
+    try {
+        // Gunakan findUnique untuk mencari user berdasarkan ID
+        const userProfile = await prisma.user.findMany({
+        
+            // Pilih field yang ingin ditampilkan (kecuali password, jika ada)
+            select: {
+                id: true,
+                walletAddress: true,
+                username: true,
+                contact: true,
+                createdAt: true,
+                role: true,
+            }
+        });
+
+        // Cek jika user tidak ditemukan
+        if (!userProfile) {
+            return res.status(404).json({ error: `User tidak ditemukan atau belum ada list users` });
+        }
+
+        // Response 200 OK dengan data profil
+        return res.status(200).json(userProfile);
+
+    } catch (error) {
+        console.error('Error saat mengambil profile:', error);
+        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
+    }
+};
+
 export const submitKarya = async (req, res) => {
     const {
         creator,
