@@ -610,7 +610,7 @@ export const accToCreator = async (req, res) => {
 
         // 3. Cek jika sudah menjadi CREATOR di database (menghindari duplikasi)
         if (targetUser.role === 'CREATOR') {
-            // Sinkronkan data di DB (walaupun biasanya sudah sinkron)
+            // Sinkronkan data di DB
             const alreadyCreator = await prisma.user.update({
                 where: { id: userId },
                 data: {
@@ -625,7 +625,6 @@ export const accToCreator = async (req, res) => {
             });
         }
 
-
         const { walletAddress, username } = targetUser;
 
         // Cek validitas alamat dompet sebelum mengirim transaksi
@@ -633,22 +632,31 @@ export const accToCreator = async (req, res) => {
             return res.status(400).json({ error: "Alamat dompet target tidak valid atau kosong." });
         }
 
+        // 4. *** PENTING: OPTIMISTIC UPDATE DATABASE DAHULU ***
+        // Kita berasumsi transaksi blockchain akan berhasil.
+        console.log(`[OPTIMISTIC WRITE] Mengubah role user ${userId} menjadi CREATOR di DB.`);
+        const updatedCreator = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                role: 'CREATOR',
+                approveTocreator: true,
+                updatedAt: new Date(),
+            },
+            select: { id: true, role: true, approveTocreator: true }
+        });
 
-        // 4. FIRE: EKSEKUSI TRANSAKSI BLOCKCHAIN
+        // 5. FIRE: EKSEKUSI TRANSAKSI BLOCKCHAIN
+        // Transaksi dikirim setelah DB di-update. Jika transaksi ini gagal, DB tidak sinkron.
         console.log(`Mengirim transaksi signCreator untuk: ${walletAddress} (${username})`);
-
-        // Mengirim transaksi tanpa menunggu konfirmasi (tanpa .wait())
         const tx = await contractSigner.signCreator(walletAddress, username);
 
         console.log(`Transaksi signCreator berhasil dikirim. Hash: ${tx.hash}`);
 
-        // 5. FORGET: Respon segera ke klien
-       startWatchingCreatorEvents
-        return res.status(202).json({
-            id: userId,
-            walletAddress: walletAddress,
+        // 6. Respon segera ke klien
+        return res.status(200).json({
+            ...updatedCreator,
             transactionHash: tx.hash,
-            message: 'Transaksi persetujuan telah dikirim ke blockchain. Status role di database akan diperbarui secara otomatis setelah konfirmasi blok.'
+            message: 'User berhasil diupdate di database. Transaksi blockchain telah dikirim.'
         });
 
     } catch (error) {
@@ -663,21 +671,13 @@ export const accToCreator = async (req, res) => {
         if (error.reason) {
             errorMessage = `Transaksi Gagal (Revert Kontrak): ${error.reason}`;
 
-            // LOGIKA PENTING: Jika REVERT karena sudah di-sign, lakukan sinkronisasi DB final
+            // LOGIKA PENTING: Jika REVERT karena sudah di-sign, ini mengonfirmasi status DB benar.
             if (error.reason.includes('Already signed')) {
-                // LAKUKAN UPDATE FINAL KE DB DI SINI
-                await prisma.user.update({
-                    where: { id: userId },
-                    data: {
-                        role: 'CREATOR',
-                        approveTocreator: true,
-                        updatedAt: new Date()
-                    },
-                });
+                // Di sini tidak perlu update lagi karena sudah di-update di Langkah 4.
                 return res.status(200).json({
                     id: userId,
-                    // walletAddress: targetUser.walletAddress,
-                    message: "Transaksi telah gagal karena sudah disetujui sebelumnya. Status DB telah disinkronkan."
+                    walletAddress: targetUser.walletAddress,
+                    message: "Transaksi gagal karena sudah disetujui sebelumnya. Status DB sudah benar."
                 });
             }
 
@@ -687,11 +687,15 @@ export const accToCreator = async (req, res) => {
             errorMessage = `Transaksi Gagal: Dompet Admin tidak memiliki cukup Gas Fee.`;
         }
 
-        // JIKA GAGAL KARENA REVERT SELAIN "Already signed", TIDAK PERLU UPDATE DB.
+        // JIKA GAGAL KARENA ERROR LAIN (selain "Already signed"), DB SUDAH TERUPDATE 
+        // DI LANGKAH 4, TETAPI TRANSAKSI BLOCKCHAIN GAGAL.
+        // DALAM KASUS INI, ANDA HARUS SECARA MANUAL MEMPERBAIKI INKONSISTENSI DATA.
         console.error('Error saat acc role creator:', error);
         return res.status(500).json({
             error: 'Terjadi kesalahan server internal.',
-            details: errorMessage
+            details: errorMessage,
+            // Tambahkan catatan untuk admin:
+            note: 'PERHATIAN: Database sudah terupdate, tetapi transaksi blockchain mungkin gagal. Perlu dilakukan verifikasi manual.'
         });
     }
 };
