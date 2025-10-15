@@ -1,4 +1,5 @@
 import {prisma} from "../util/prisma_config.js"
+import { contractSigner } from '../util/blockchain_config.js'; 
 
 export const createProfile = async (req, res) => {
     const { walletAddress, username, contact } = req.body;
@@ -573,7 +574,7 @@ export const getCreatorRequests = async (req, res) => {
 export const accToCreator = async (req, res) => {
     const { id, adminId } = req.body;
 
-    // Validasi 
+    // Validasi input
     if (!id || !adminId) {
         return res.status(400).json({ error: "ID target dan ID Admin harus disediakan." });
     }
@@ -586,43 +587,93 @@ export const accToCreator = async (req, res) => {
     }
 
     try {
-      
+        // Cek role Admin
         const adminUser = await prisma.user.findUnique({
             where: { id: adminCheckerId },
             select: { role: true }
         });
 
         if (!adminUser || adminUser.role !== 'ADMIN') {
-            // Jika user tidak ditemukan atau bukan ADMIN, tolak akses
             return res.status(403).json({ error: 'Akses Ditolak: Hanya user dengan role ADMIN yang dapat melakukan persetujuan.' });
         }
 
-        // Update record user: Ubah role menjadi CREATOR dan set approveTocreator menjadi TRUE
+        // Ambil data User Target (untuk transaksi blockchain)
+        const targetUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { walletAddress: true, username: true, role: true }
+        });
+
+        if (!targetUser) {
+            return res.status(404).json({ error: `User dengan ID ${userId} tidak ditemukan.` });
+        }
+
+        // Cek jika sudah menjadi CREATOR di database, lewati tx
+        if (targetUser.role === 'CREATOR') {
+            // Lanjutkan update di Prisma untuk memastikan approveTocreator = true, lalu kembali
+            const alreadyCreator = await prisma.user.update({
+                where: { id: userId },
+                data: { role: 'CREATOR', approveTocreator: true },
+                select: { id: true, updatedAt: true, role: true, approveTocreator: true }
+            });
+            return res.status(200).json({
+                ...alreadyCreator,
+                message: "User sudah menjadi Creator dan role di-update di database."
+            });
+        }
+
+        const { walletAddress, username } = targetUser;
+
+        // 3. EKSEKUSI TRANSAKSI BLOCKCHAIN (signCreator)
+        console.log(`Mengirim transaksi signCreator untuk: ${walletAddress} (${username})`);
+
+        const tx = await contractSigner.signCreator(walletAddress, username);
+        const receipt = await tx.wait(); // Tunggu konfirmasi
+
+        console.log(`Transaksi signCreator berhasil. Hash: ${receipt.hash}`);
+
+        // 4. Update record user di database (HANYA JIKA TRANSAKSI BERHASIL)
         const updatedUser = await prisma.user.update({
             where: { id: userId },
             data: {
-                role: 'CREATOR',              // Mengubah role
-                approveTocreator: true        // Menyetujui
+                role: 'CREATOR',            // Mengubah role
+                approveTocreator: true      // Menyetujui
             },
-            //Select fields untuk format response 
+            // Select fields untuk format response 
             select: {
                 id: true,
+                walletAddress: true,
+                username: true,
                 updatedAt: true,
                 role: true,
                 approveTocreator: true
             }
         });
 
-       
-        return res.status(200).json(updatedUser);
+        // Response Sukses
+        return res.status(200).json({
+            ...updatedUser,
+            transactionHash: receipt.hash,
+            message: 'Persetujuan CREATOR berhasil dan tercatat di blockchain.'
+        });
 
     } catch (error) {
-  
+
         if (error.code === 'P2025') {
             return res.status(404).json({ error: `User dengan ID ${userId} tidak ditemukan untuk diubah statusnya.` });
         }
 
+        // Penanganan error spesifik Ethers.js (dari kegagalan transaksi)
+        let errorMessage = 'Terjadi kesalahan saat berkomunikasi dengan blockchain.';
+        if (error.reason) {
+            errorMessage = `Transaksi Blockchain Gagal: ${error.reason}`;
+        } else if (error.message && error.message.includes('transaction failed')) {
+            errorMessage = `Transaksi Blockchain Gagal (mungkin gas tidak cukup atau kontrak revert).`;
+        }
+
         console.error('Error saat acc role creator:', error);
-        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
+        return res.status(500).json({
+            error: 'Terjadi kesalahan server internal.',
+            details: errorMessage
+        });
     }
 };
