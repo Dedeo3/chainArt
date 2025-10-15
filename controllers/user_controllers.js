@@ -598,7 +598,6 @@ export const accToCreator = async (req, res) => {
         }
 
         // 2. Ambil data User Target
-        // Tambahkan isCreatorApprovalPending di seleksi (perlu ditambahkan di skema Prisma Anda)
         const targetUser = await prisma.user.findUnique({
             where: { id: userId },
             select: { walletAddress: true, username: true, role: true, approveTocreator: true }
@@ -608,8 +607,9 @@ export const accToCreator = async (req, res) => {
             return res.status(404).json({ error: `User dengan ID ${userId} tidak ditemukan.` });
         }
 
-        // 3. Cek jika sudah menjadi CREATOR di database
+        // 3. Cek jika sudah menjadi CREATOR di database (menghindari duplikasi)
         if (targetUser.role === 'CREATOR') {
+            // Sinkronkan data di DB (walaupun biasanya sudah sinkron)
             const alreadyCreator = await prisma.user.update({
                 where: { id: userId },
                 data: {
@@ -624,14 +624,6 @@ export const accToCreator = async (req, res) => {
             });
         }
 
-        //  if (targetUser.isCreatorApprovalPending) {
-        //     return res.status(200).json({
-        //         id: userId,
-        //         walletAddress: targetUser.walletAddress,
-        //         message: "Persetujuan untuk user ini sedang diproses di blockchain (PENDING)."
-        //     });
-        // }  // 4. Cek jika sedang dalam proses persetujuan
-     
 
         const { walletAddress, username } = targetUser;
 
@@ -641,7 +633,7 @@ export const accToCreator = async (req, res) => {
         }
 
 
-        // 5. FIRE: EKSEKUSI TRANSAKSI BLOCKCHAIN
+        // 4. FIRE: EKSEKUSI TRANSAKSI BLOCKCHAIN
         console.log(`Mengirim transaksi signCreator untuk: ${walletAddress} (${username})`);
 
         // Mengirim transaksi tanpa menunggu konfirmasi (tanpa .wait())
@@ -649,48 +641,41 @@ export const accToCreator = async (req, res) => {
 
         console.log(`Transaksi signCreator berhasil dikirim. Hash: ${tx.hash}`);
 
-        // 6. UPDATE STATUS DB SEMENTARA (OPTIMISTIC/PENDING)
-        // Tandai user sedang menunggu konfirmasi blockchain
-        await prisma.user.update({
-            where: { id: userId },
-            // data: { isCreatorApprovalPending: true },
-        });
-
-        // 7. FORGET: Respon segera ke klien
+        // 5. FORGET: Respon segera ke klien
         // Update database FINAL akan dilakukan oleh blockchain_watcher.js saat transaksi dikonfirmasi.
         return res.status(202).json({
             id: userId,
             walletAddress: walletAddress,
             transactionHash: tx.hash,
-            message: 'Transaksi persetujuan telah dikirim ke blockchain. User ditandai sebagai PENDING. Status role FINAL akan diperbarui secara otomatis setelah konfirmasi blok.'
+            message: 'Transaksi persetujuan telah dikirim ke blockchain. Status role di database akan diperbarui secara otomatis setelah konfirmasi blok.'
         });
 
     } catch (error) {
-        // ... (Penanganan error tetap sama)
+
         if (error.code === 'P2025') {
             return res.status(404).json({ error: `User dengan ID ${userId} tidak ditemukan untuk diubah statusnya.` });
         }
 
         // Penanganan error saat ESTIMATE GAS / Pengiriman Transaksi
         let errorMessage = 'Terjadi kesalahan saat mencoba mengirim transaksi ke blockchain.';
+
         if (error.reason) {
-            // Ini akan menangkap "Already signed"
             errorMessage = `Transaksi Gagal (Revert Kontrak): ${error.reason}`;
-            // KARENA REVERT (BERHASIL DI SIGN SEBELUMNYA) -> UPDATE FINAL KE DB
+
+            // LOGIKA PENTING: Jika REVERT karena sudah di-sign, lakukan sinkronisasi DB final
             if (error.reason.includes('Already signed')) {
-                // LAKUKAN UPDATE FINAL KE DB DI SINI (Jika kontrak revert karena sudah sign)
+                // LAKUKAN UPDATE FINAL KE DB DI SINI
                 await prisma.user.update({
                     where: { id: userId },
                     data: {
                         role: 'CREATOR',
                         approveTocreator: true,
-                        // isCreatorApprovalPending: false,
                         updatedAt: new Date()
                     },
                 });
                 return res.status(200).json({
                     id: userId,
-                    walletAddress: targetUser.walletAddress,
+                    // walletAddress: targetUser.walletAddress,
                     message: "Transaksi telah gagal karena sudah disetujui sebelumnya. Status DB telah disinkronkan."
                 });
             }
