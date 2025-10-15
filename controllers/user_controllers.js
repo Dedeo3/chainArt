@@ -94,13 +94,20 @@ export const updateProfile = async (req, res) => {
             console.log(`[BLOCKCHAIN] Mengirim updateCreatorName untuk: ${newUsername}`);
 
             try {
-                // fungsi di smart contract adalah updateCreatorName
+                // Asumsi fungsi di smart contract adalah updateCreatorName
                 const tx = await contractSigner.updateCreatorName(newUsername);
                 txHash = tx.hash;
                 console.log(`Transaksi updateCreatorName berhasil dikirim. Hash: ${txHash}`);
+
+                // Jika transaksi berhasil dikirim, kembalikan respons 200 di sini
+                return res.status(200).json({
+                    ...updatedUser,
+                    message: 'Profile berhasil diperbarui, dan transaksi blockchain telah dikirim.',
+                    transactionHash: txHash
+                });
             } catch (error) {
                 // JIKA TRANSAKSI BLOCKCHAIN GAGAL (tapi DB sudah berhasil di-update)
-                // Ini adalah risiko Optimistic Write. Database tidak sinkron dengan Blockchain.
+                // Kita RETURN respons 202 di sini.
 
                 // Pengecekan spesifik untuk error Ethers
                 let blockchainError = 'Gagal mengirim transaksi updateCreatorName ke blockchain.';
@@ -112,19 +119,17 @@ export const updateProfile = async (req, res) => {
 
                 console.error('Error saat update nama creator di blockchain:', error);
 
-                // Kembalikan error 202 (Accepted, tapi dengan warning) atau 500 (Fatal Error)
-                // Kita kembalikan 202 agar user tahu DB berhasil di-update, tapi ada masalah di blockchain.
+                // Kembalikan error 202 (Accepted, tapi dengan warning)
                 return res.status(202).json({
                     ...updatedUser,
                     message: `PERINGATAN: Profile berhasil diperbarui di database, tetapi transaksi update nama di blockchain gagal.`,
                     blockchain_error: blockchainError,
-                    // Tambahkan catatan untuk admin:
                     note: 'Database sudah terupdate. Perlu dilakukan verifikasi atau penyesuaian manual di smart contract.'
                 });
             }
         }
 
-        // Response 200 (jika tidak ada update blockchain, atau update blockchain berhasil dikirim)
+        // Response 200 (jika tidak ada update blockchain yang diperlukan)
         return res.status(200).json({
             ...updatedUser,
             message: 'Profile berhasil diperbarui.',
