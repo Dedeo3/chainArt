@@ -615,7 +615,6 @@ export const accToCreator = async (req, res) => {
                 data: {
                     role: 'CREATOR',
                     approveTocreator: true,
-                    isCreatorApprovalPending: false // Pastikan pending status direset
                 },
                 select: { id: true, role: true, approveTocreator: true }
             });
@@ -625,14 +624,14 @@ export const accToCreator = async (req, res) => {
             });
         }
 
-        // 4. Cek jika sedang dalam proses persetujuan
-        if (targetUser.isCreatorApprovalPending) {
-            return res.status(200).json({
-                id: userId,
-                walletAddress: targetUser.walletAddress,
-                message: "Persetujuan untuk user ini sedang diproses di blockchain (PENDING)."
-            });
-        }
+        //  if (targetUser.isCreatorApprovalPending) {
+        //     return res.status(200).json({
+        //         id: userId,
+        //         walletAddress: targetUser.walletAddress,
+        //         message: "Persetujuan untuk user ini sedang diproses di blockchain (PENDING)."
+        //     });
+        // }  // 4. Cek jika sedang dalam proses persetujuan
+     
 
         const { walletAddress, username } = targetUser;
 
@@ -654,7 +653,7 @@ export const accToCreator = async (req, res) => {
         // Tandai user sedang menunggu konfirmasi blockchain
         await prisma.user.update({
             where: { id: userId },
-            data: { isCreatorApprovalPending: true },
+            // data: { isCreatorApprovalPending: true },
         });
 
         // 7. FORGET: Respon segera ke klien
@@ -685,7 +684,7 @@ export const accToCreator = async (req, res) => {
                     data: {
                         role: 'CREATOR',
                         approveTocreator: true,
-                        isCreatorApprovalPending: false,
+                        // isCreatorApprovalPending: false,
                         updatedAt: new Date()
                     },
                 });
