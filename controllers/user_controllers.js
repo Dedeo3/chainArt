@@ -1,5 +1,6 @@
 import {prisma} from "../util/prisma_config.js"
 import { contractSigner } from '../util/blockchain_config.js'; 
+import { startWatchingCreatorEvents } from "../util/blockchain_watcher.js";
 
 export const createProfile = async (req, res) => {
     const { walletAddress, username, contact } = req.body;
@@ -642,7 +643,7 @@ export const accToCreator = async (req, res) => {
         console.log(`Transaksi signCreator berhasil dikirim. Hash: ${tx.hash}`);
 
         // 5. FORGET: Respon segera ke klien
-        // Update database FINAL akan dilakukan oleh blockchain_watcher.js saat transaksi dikonfirmasi.
+       startWatchingCreatorEvents
         return res.status(202).json({
             id: userId,
             walletAddress: walletAddress,
