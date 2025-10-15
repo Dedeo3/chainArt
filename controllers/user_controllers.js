@@ -587,7 +587,7 @@ export const accToCreator = async (req, res) => {
     }
 
     try {
-        // Cek role Admin
+        // 1. Cek role Admin
         const adminUser = await prisma.user.findUnique({
             where: { id: adminCheckerId },
             select: { role: true }
@@ -597,7 +597,7 @@ export const accToCreator = async (req, res) => {
             return res.status(403).json({ error: 'Akses Ditolak: Hanya user dengan role ADMIN yang dapat melakukan persetujuan.' });
         }
 
-        // Ambil data User Target (untuk transaksi blockchain)
+        // 2. Ambil data User Target
         const targetUser = await prisma.user.findUnique({
             where: { id: userId },
             select: { walletAddress: true, username: true, role: true }
@@ -607,53 +607,43 @@ export const accToCreator = async (req, res) => {
             return res.status(404).json({ error: `User dengan ID ${userId} tidak ditemukan.` });
         }
 
-        // Cek jika sudah menjadi CREATOR di database, lewati tx
+        // 3. Cek jika sudah menjadi CREATOR di database (menghindari duplikasi)
         if (targetUser.role === 'CREATOR') {
-            // Lanjutkan update di Prisma untuk memastikan approveTocreator = true, lalu kembali
+            // Jika sudah CREATOR di DB, pastikan approveTocreator = true, lalu kembali
             const alreadyCreator = await prisma.user.update({
                 where: { id: userId },
                 data: { role: 'CREATOR', approveTocreator: true },
-                select: { id: true, updatedAt: true, role: true, approveTocreator: true }
+                select: { id: true, role: true, approveTocreator: true }
             });
             return res.status(200).json({
                 ...alreadyCreator,
-                message: "User sudah menjadi Creator dan role di-update di database."
+                message: "User sudah menjadi Creator di database."
             });
         }
 
         const { walletAddress, username } = targetUser;
 
-        // 3. EKSEKUSI TRANSAKSI BLOCKCHAIN (signCreator)
+        // Cek validitas alamat dompet sebelum mengirim transaksi
+        if (!walletAddress || walletAddress.length !== 42) {
+            return res.status(400).json({ error: "Alamat dompet target tidak valid atau kosong." });
+        }
+
+
+        // 4. FIRE: EKSEKUSI TRANSAKSI BLOCKCHAIN
         console.log(`Mengirim transaksi signCreator untuk: ${walletAddress} (${username})`);
 
+        // Mengirim transaksi tanpa menunggu konfirmasi (tanpa .wait())
         const tx = await contractSigner.signCreator(walletAddress, username);
-        const receipt = await tx.wait(); // Tunggu konfirmasi
 
-        console.log(`Transaksi signCreator berhasil. Hash: ${receipt.hash}`);
+        console.log(`Transaksi signCreator berhasil dikirim. Hash: ${tx.hash}`);
 
-        // 4. Update record user di database (HANYA JIKA TRANSAKSI BERHASIL)
-        const updatedUser = await prisma.user.update({
-            where: { id: userId },
-            data: {
-                role: 'CREATOR',            // Mengubah role
-                approveTocreator: true      // Menyetujui
-            },
-            // Select fields untuk format response 
-            select: {
-                id: true,
-                walletAddress: true,
-                username: true,
-                updatedAt: true,
-                role: true,
-                approveTocreator: true
-            }
-        });
-
-        // Response Sukses
-        return res.status(200).json({
-            ...updatedUser,
-            transactionHash: receipt.hash,
-            message: 'Persetujuan CREATOR berhasil dan tercatat di blockchain.'
+        // 5. FORGET: Respon segera ke klien
+        // Update database akan dilakukan oleh blockchain_watcher.js saat transaksi dikonfirmasi.
+        return res.status(202).json({
+            id: userId,
+            walletAddress: walletAddress,
+            transactionHash: tx.hash,
+            message: 'Transaksi persetujuan telah dikirim ke blockchain. Status role di database akan diperbarui secara otomatis setelah konfirmasi blok.'
         });
 
     } catch (error) {
@@ -662,12 +652,14 @@ export const accToCreator = async (req, res) => {
             return res.status(404).json({ error: `User dengan ID ${userId} tidak ditemukan untuk diubah statusnya.` });
         }
 
-        // Penanganan error spesifik Ethers.js (dari kegagalan transaksi)
-        let errorMessage = 'Terjadi kesalahan saat berkomunikasi dengan blockchain.';
+        // Penanganan error saat ESTIMATE GAS / Pengiriman Transaksi
+        let errorMessage = 'Terjadi kesalahan saat mencoba mengirim transaksi ke blockchain.';
         if (error.reason) {
-            errorMessage = `Transaksi Blockchain Gagal: ${error.reason}`;
-        } else if (error.message && error.message.includes('transaction failed')) {
-            errorMessage = `Transaksi Blockchain Gagal (mungkin gas tidak cukup atau kontrak revert).`;
+            errorMessage = `Transaksi Gagal (Revert Kontrak): ${error.reason}`;
+        } else if (error.code === 'CALL_EXCEPTION') {
+            errorMessage = `Transaksi Gagal: Kemungkinan izin 'onlyOwner' tidak terpenuhi atau 'Already signed'.`;
+        } else if (error.code === 'INSUFFICIENT_FUNDS') {
+            errorMessage = `Transaksi Gagal: Dompet Admin tidak memiliki cukup Gas Fee.`;
         }
 
         console.error('Error saat acc role creator:', error);
