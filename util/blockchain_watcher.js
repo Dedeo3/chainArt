@@ -1,51 +1,52 @@
 import 'dotenv/config';
+// Pastikan path ini benar untuk file yang mengekspor contractReader
 import { contractReader } from './blockchain_config.js';
-// Asumsi: dbPool diekspor sebagai default dari db_config.js
-import dbPool from './prisma_config.js';
+// Mengimpor instance PrismaClient dari prisma_config.js
+import { prisma } from './prisma_config.js';
 
 /**
- * Memperbarui role pengguna di database NeonDB (PostgreSQL) setelah 
+ * Memperbarui role pengguna di database menggunakan Prisma setelah 
  * event CreatorSigned terkonfirmasi di blockchain.
- * * @param {string} walletAddress - Alamat dompet kreator (dari event blockchain).
+ * @param {string} walletAddress - Alamat dompet kreator (dari event blockchain).
  */
-const updateNeonDbUser = async (walletAddress) => {
-    // Ubah alamat dompet menjadi lowercase untuk pencocokan yang aman 
-    // di dalam query SQL (menggunakan LOWER("walletAddress")).
-    const addressToLower = walletAddress.toLowerCase();
+const updatePrismaUser = async (walletAddress) => {
+    // Alamat dompet dari event.
+    const addressToCheck = walletAddress;
 
-    // SQL Query: Update role dan status persetujuan di tabel "User"
-    // Pastikan nama tabel dan kolom sesuai dengan skema Prisma Anda.
-    const sql = `
-        UPDATE "user"
-        SET "role" = 'CREATOR', 
-            "approveTocreator" = TRUE,
-            "updatedAt" = NOW()
-        WHERE LOWER("walletAddress") = $1;
-    `;
-
-    let client;
     try {
-        // Mendapatkan client dari pool koneksi NeonDB
-        client = await dbPool.connect();
+        // Menggunakan metode Prisma ORM untuk melakukan update.
+        // updateMany digunakan untuk memastikan update berjalan meskipun walletAddress 
+        // tidak didefinisikan sebagai unique di skema Prisma, dan menangani perbandingan case.
+        const updatedUser = await prisma.user.updateMany({
+            where: {
+                walletAddress: {
+                    // Menggunakan mode 'insensitive' yang didukung oleh PostgreSQL (NeonDB) 
+                    // untuk mengatasi perbedaan huruf besar/kecil pada alamat dompet.
+                    equals: addressToCheck,
+                    mode: 'insensitive',
+                },
+            },
+            data: {
+                role: 'CREATOR',
+                approveTocreator: true,
+                updatedAt: new Date(), // Menyetel updatedAt saat ini
+            },
+        });
 
-        // Eksekusi query untuk mengubah status di DB
-        const result = await client.query(sql, [addressToLower]);
-
-        if (result.rowCount > 0) {
-            console.log(`[SUCCESS DB] Role CREATOR berhasil diupdate untuk alamat ${walletAddress} di NeonDB.`);
+        if (updatedUser.count > 0) {
+            console.log(`[SUCCESS DB] Role CREATOR berhasil diupdate (${updatedUser.count} row) untuk alamat ${walletAddress} menggunakan Prisma.`);
         } else {
             console.warn(`[WARNING DB] Alamat ${walletAddress} dari event tidak ditemukan di database. Pastikan alamat dompet sudah tersimpan di tabel "User".`);
         }
     } catch (error) {
         console.error(`[ERROR DB] Gagal melakukan update role untuk ${walletAddress}:`, error);
-    } finally {
-        // Sangat penting: Client harus dikembalikan ke pool setelah digunakan
-        if (client) {
-            client.release();
-        }
     }
 };
 
+
+// -----------------------------------------------------------
+// FUNGSI UTAMA: MENDENGARKAN EVENT DARI BLOCKCHAIN
+// -----------------------------------------------------------
 
 export const startWatchingCreatorEvents = async () => {
     console.log("Memulai ChainArt Creator Event Watcher...");
@@ -61,8 +62,8 @@ export const startWatchingCreatorEvents = async () => {
         console.log(`Blok Number: ${event.log.blockNumber}`);
         console.log(`Hash Transaksi: ${event.log.transactionHash}`);
 
-        // Panggil fungsi untuk memperbarui database NeonDB
-        await updateNeonDbUser(creatorAddress);
+        // Panggil fungsi untuk memperbarui database menggunakan Prisma
+        await updatePrismaUser(creatorAddress);
 
         console.log(`--- Update DB Selesai: ${creatorAddress} ---\n`);
     };
@@ -76,7 +77,7 @@ export const startWatchingCreatorEvents = async () => {
         // Handler error koneksi provider Ethers (penting untuk worker 24/7)
         contractReader.provider.on("error", (error) => {
             console.error("[PROVIDER ERROR] Terjadi kesalahan koneksi Provider:", error);
-            // Worker akan otomatis mencoba menyambung kembali
+            // Logika reconnect atau notifikasi dapat ditambahkan di sini
         });
 
     } catch (error) {
