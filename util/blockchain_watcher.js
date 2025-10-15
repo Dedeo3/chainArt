@@ -86,4 +86,4 @@ export const startWatchingCreatorEvents = async () => {
 };
 
 // Panggil fungsi untuk memulai watcher saat skrip dieksekusi
-startWatchingCreatorEvents();
+// startWatchingCreatorEvents();

@@ -598,26 +598,39 @@ export const accToCreator = async (req, res) => {
         }
 
         // 2. Ambil data User Target
+        // Tambahkan isCreatorApprovalPending di seleksi (perlu ditambahkan di skema Prisma Anda)
         const targetUser = await prisma.user.findUnique({
             where: { id: userId },
-            select: { walletAddress: true, username: true, role: true }
+            select: { walletAddress: true, username: true, role: true, isCreatorApprovalPending: true }
         });
 
         if (!targetUser) {
             return res.status(404).json({ error: `User dengan ID ${userId} tidak ditemukan.` });
         }
 
-        // 3. Cek jika sudah menjadi CREATOR di database (menghindari duplikasi)
+        // 3. Cek jika sudah menjadi CREATOR di database
         if (targetUser.role === 'CREATOR') {
-            // Jika sudah CREATOR di DB, pastikan approveTocreator = true, lalu kembali
             const alreadyCreator = await prisma.user.update({
                 where: { id: userId },
-                data: { role: 'CREATOR', approveTocreator: true },
+                data: {
+                    role: 'CREATOR',
+                    approveTocreator: true,
+                    isCreatorApprovalPending: false // Pastikan pending status direset
+                },
                 select: { id: true, role: true, approveTocreator: true }
             });
             return res.status(200).json({
                 ...alreadyCreator,
                 message: "User sudah menjadi Creator di database."
+            });
+        }
+
+        // 4. Cek jika sedang dalam proses persetujuan
+        if (targetUser.isCreatorApprovalPending) {
+            return res.status(200).json({
+                id: userId,
+                walletAddress: targetUser.walletAddress,
+                message: "Persetujuan untuk user ini sedang diproses di blockchain (PENDING)."
             });
         }
 
@@ -629,7 +642,7 @@ export const accToCreator = async (req, res) => {
         }
 
 
-        // 4. FIRE: EKSEKUSI TRANSAKSI BLOCKCHAIN
+        // 5. FIRE: EKSEKUSI TRANSAKSI BLOCKCHAIN
         console.log(`Mengirim transaksi signCreator untuk: ${walletAddress} (${username})`);
 
         // Mengirim transaksi tanpa menunggu konfirmasi (tanpa .wait())
@@ -637,17 +650,24 @@ export const accToCreator = async (req, res) => {
 
         console.log(`Transaksi signCreator berhasil dikirim. Hash: ${tx.hash}`);
 
-        // 5. FORGET: Respon segera ke klien
-        // Update database akan dilakukan oleh blockchain_watcher.js saat transaksi dikonfirmasi.
+        // 6. UPDATE STATUS DB SEMENTARA (OPTIMISTIC/PENDING)
+        // Tandai user sedang menunggu konfirmasi blockchain
+        await prisma.user.update({
+            where: { id: userId },
+            data: { isCreatorApprovalPending: true },
+        });
+
+        // 7. FORGET: Respon segera ke klien
+        // Update database FINAL akan dilakukan oleh blockchain_watcher.js saat transaksi dikonfirmasi.
         return res.status(202).json({
             id: userId,
             walletAddress: walletAddress,
             transactionHash: tx.hash,
-            message: 'Transaksi persetujuan telah dikirim ke blockchain. Status role di database akan diperbarui secara otomatis setelah konfirmasi blok.'
+            message: 'Transaksi persetujuan telah dikirim ke blockchain. User ditandai sebagai PENDING. Status role FINAL akan diperbarui secara otomatis setelah konfirmasi blok.'
         });
 
     } catch (error) {
-
+        // ... (Penanganan error tetap sama)
         if (error.code === 'P2025') {
             return res.status(404).json({ error: `User dengan ID ${userId} tidak ditemukan untuk diubah statusnya.` });
         }
@@ -655,13 +675,34 @@ export const accToCreator = async (req, res) => {
         // Penanganan error saat ESTIMATE GAS / Pengiriman Transaksi
         let errorMessage = 'Terjadi kesalahan saat mencoba mengirim transaksi ke blockchain.';
         if (error.reason) {
+            // Ini akan menangkap "Already signed"
             errorMessage = `Transaksi Gagal (Revert Kontrak): ${error.reason}`;
+            // KARENA REVERT (BERHASIL DI SIGN SEBELUMNYA) -> UPDATE FINAL KE DB
+            if (error.reason.includes('Already signed')) {
+                // LAKUKAN UPDATE FINAL KE DB DI SINI (Jika kontrak revert karena sudah sign)
+                await prisma.user.update({
+                    where: { id: userId },
+                    data: {
+                        role: 'CREATOR',
+                        approveTocreator: true,
+                        isCreatorApprovalPending: false,
+                        updatedAt: new Date()
+                    },
+                });
+                return res.status(200).json({
+                    id: userId,
+                    walletAddress: targetUser.walletAddress,
+                    message: "Transaksi telah gagal karena sudah disetujui sebelumnya. Status DB telah disinkronkan."
+                });
+            }
+
         } else if (error.code === 'CALL_EXCEPTION') {
             errorMessage = `Transaksi Gagal: Kemungkinan izin 'onlyOwner' tidak terpenuhi atau 'Already signed'.`;
         } else if (error.code === 'INSUFFICIENT_FUNDS') {
             errorMessage = `Transaksi Gagal: Dompet Admin tidak memiliki cukup Gas Fee.`;
         }
 
+        // JIKA GAGAL KARENA REVERT SELAIN "Already signed", TIDAK PERLU UPDATE DB.
         console.error('Error saat acc role creator:', error);
         return res.status(500).json({
             error: 'Terjadi kesalahan server internal.',
