@@ -601,7 +601,7 @@ export const accToCreator = async (req, res) => {
         // Tambahkan isCreatorApprovalPending di seleksi (perlu ditambahkan di skema Prisma Anda)
         const targetUser = await prisma.user.findUnique({
             where: { id: userId },
-            select: { walletAddress: true, username: true, role: true, isCreatorApprovalPending: true }
+            select: { walletAddress: true, username: true, role: true, approveTocreator: true }
         });
 
         if (!targetUser) {
