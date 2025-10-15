@@ -40,8 +40,8 @@ export const createProfile = async (req, res) => {
 };
 
 export const updateProfile = async (req, res) => {
-    const userId = parseInt(req.params.id); 
-    const updateData = req.body; // Ambil seluruh body request (hanya berisi field yang diubah)
+    const userId = parseInt(req.params.id);
+    const updateData = req.body;
 
     // Pastikan body tidak kosong
     if (Object.keys(updateData).length === 0) {
@@ -58,34 +58,92 @@ export const updateProfile = async (req, res) => {
     }
 
     try {
+        // 1. Ambil data user sebelum di-update (untuk cek role dan walletAddress)
+        const existingUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { role: true, walletAddress: true }
+        });
+
+        if (!existingUser) {
+            return res.status(404).json({ error: `User dengan ID ${userId} tidak ditemukan.` });
+        }
+
+        let txHash = null;
+
+        // 2. Cek apakah ini adalah update username untuk seorang CREATOR
+        const isCreator = existingUser.role === 'CREATOR';
+        const isUpdatingUsername = 'username' in updateData;
+
+        // 3. OPTIMISTIC WRITE DATABASE (Dilakukan duluan)
         const updatedUser = await prisma.user.update({
             where: { id: userId },
             data: updateData,
             select: {
                 id: true,
                 walletAddress: true,
-                username: true,
+                username: true, // Ambil username baru dari DB
                 contact: true,
                 role: true,
-                updatedAt:true
+                updatedAt: true
             }
         });
 
-        // Response 200
-        return res.status(200).json(updatedUser);
+        // 4. KIRIM TRANSAKSI KE BLOCKCHAIN (Jika diperlukan)
+        if (isCreator && isUpdatingUsername) {
+            const newUsername = updatedUser.username;
+            console.log(`[BLOCKCHAIN] Mengirim updateCreatorName untuk: ${newUsername}`);
+
+            try {
+                // fungsi di smart contract adalah updateCreatorName
+                const tx = await contractSigner.updateCreatorName(newUsername);
+                txHash = tx.hash;
+                console.log(`Transaksi updateCreatorName berhasil dikirim. Hash: ${txHash}`);
+            } catch (error) {
+                // JIKA TRANSAKSI BLOCKCHAIN GAGAL (tapi DB sudah berhasil di-update)
+                // Ini adalah risiko Optimistic Write. Database tidak sinkron dengan Blockchain.
+
+                // Pengecekan spesifik untuk error Ethers
+                let blockchainError = 'Gagal mengirim transaksi updateCreatorName ke blockchain.';
+                if (error.reason) {
+                    blockchainError = `Transaksi Revert: ${error.reason}`;
+                } else if (error.code === 'INSUFFICIENT_FUNDS') {
+                    blockchainError = 'Gagal Transaksi: Dompet Admin tidak memiliki cukup Gas Fee.';
+                }
+
+                console.error('Error saat update nama creator di blockchain:', error);
+
+                // Kembalikan error 202 (Accepted, tapi dengan warning) atau 500 (Fatal Error)
+                // Kita kembalikan 202 agar user tahu DB berhasil di-update, tapi ada masalah di blockchain.
+                return res.status(202).json({
+                    ...updatedUser,
+                    message: `PERINGATAN: Profile berhasil diperbarui di database, tetapi transaksi update nama di blockchain gagal.`,
+                    blockchain_error: blockchainError,
+                    // Tambahkan catatan untuk admin:
+                    note: 'Database sudah terupdate. Perlu dilakukan verifikasi atau penyesuaian manual di smart contract.'
+                });
+            }
+        }
+
+        // Response 200 (jika tidak ada update blockchain, atau update blockchain berhasil dikirim)
+        return res.status(200).json({
+            ...updatedUser,
+            message: 'Profile berhasil diperbarui.',
+            transactionHash: txHash
+        });
 
     } catch (error) {
-        // Penanganan Error (ID tidak ditemukan atau data unik duplikat)
+        // Penanganan Error Prisma
 
         // P2025: Record yang akan diperbarui tidak ditemukan (ID salah)
         if (error.code === 'P2025') {
             return res.status(404).json({ error: `User dengan ID ${userId} tidak ditemukan.` });
         }
 
-        // P2002: Unique Constraint Violation (misalnya, mencoba menggunakan username yang sudah ada)
+        // P2002: Unique Constraint Violation 
         if (error.code === 'P2002') {
+            const field = error.meta?.target ? error.meta.target.join(', ') : 'field unik';
             return res.status(409).json({
-                error: `Gagal memperbarui: Salah satu data unik (Wallet Address, Username, atau Contact) sudah digunakan oleh user lain.`
+                error: `Gagal memperbarui: ${field} sudah digunakan oleh user lain.`
             });
         }
 
@@ -93,6 +151,7 @@ export const updateProfile = async (req, res) => {
         return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
     }
 };
+
 
 export const getProfile = async (req, res) => {
     // Ambil ID dari URL dan konversi ke integer
