@@ -1,9 +1,10 @@
 import express from 'express';
-import { createProfile, updateProfile, getProfile, getUsers, submitKarya, getKaryaById, getPendingKarya, getApprovedKarya, searchKaryaByTitle, requestCreator, getCreatorRequests, accToCreator } from '../controllers/user_controllers.js'; // Import fungsi spesifik
+import { createProfile, updateProfile, getProfile,getCreator, getUsers, submitKarya, getKaryaById, getPendingKarya, getApprovedKarya, searchKaryaByTitle, requestCreator, getCreatorRequests, accToCreator } from '../controllers/user_controllers.js'; // Import fungsi spesifik
 
 const router = express.Router();
 
 router.get('/profile/creator-request', getCreatorRequests)
+router.get('/profile/creator', getCreator)
 router.get('/profile', getUsers)
 
 // Endpoint GET /api/profile/:id untuk mengambil profil

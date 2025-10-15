@@ -49,7 +49,7 @@ Response
 Request
 ```json
 {
-	"walletAddress":"0xawjkajekljadadfs"
+	  "walletAddress":"0xawjkajekljadadfs",
     "username" : "dolin",
     "contact": "dolin@gmail.com"
 }
@@ -57,9 +57,9 @@ Request
 Response
 ```json
 {
-	"walletAddress":"0xawjkajekljadadfs"
+	  "walletAddress":"0xawjkajekljadadfs",
     "createdAt":"timestamp",
-    "updateAt":"time stamp"
+    "updateAt":"time stamp",
     "username" : "dolin",
     "contact": "dolin@gmail.com"
 }
