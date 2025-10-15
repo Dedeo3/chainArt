@@ -1,6 +1,6 @@
 import {prisma} from "../util/prisma_config.js"
 import { contractSigner } from '../util/blockchain_config.js'; 
-import { startWatchingCreatorEvents } from "../util/blockchain_watcher.js";
+
 
 export const createProfile = async (req, res) => {
     const { walletAddress, username, contact } = req.body;
@@ -38,7 +38,6 @@ export const createProfile = async (req, res) => {
         return res.status(500).json({ error: 'Terjadi kesalahan server.' });
     }
 };
-
 export const updateProfile = async (req, res) => {
     const userId = parseInt(req.params.id);
     const updateData = req.body;
@@ -73,6 +72,18 @@ export const updateProfile = async (req, res) => {
         // 2. Cek apakah ini adalah update username untuk seorang CREATOR
         const isCreator = existingUser.role === 'CREATOR';
         const isUpdatingUsername = 'username' in updateData;
+
+        // ** PENAMBAHAN VALIDASI ALAMAT DOMPET UNTUK CREATOR **
+        if (isCreator && isUpdatingUsername) {
+            const walletAddress = existingUser.walletAddress;
+            // Alamat dompet Ethereum/EVM biasanya 42 karakter (0x + 40 karakter)
+            if (!walletAddress || walletAddress.length !== 42) {
+                return res.status(400).json({
+                    error: "Alamat dompet Creator tidak valid. Pembaruan nama di blockchain dibatalkan."
+                });
+            }
+        }
+        // *******************************************************
 
         // 3. OPTIMISTIC WRITE DATABASE (Dilakukan duluan)
         const updatedUser = await prisma.user.update({
@@ -156,6 +167,7 @@ export const updateProfile = async (req, res) => {
         return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
     }
 };
+
 
 
 export const getProfile = async (req, res) => {
