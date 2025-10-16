@@ -49,19 +49,19 @@ Response
 Request
 ```json
 {
-	  "walletAddress":"0xawjkajekljadadfs",
-    "username" : "dolin",
-    "contact": "dolin@gmail.com"
+    "username" : "dolin andre serasi",
 }
 ```
 Response
 ```json
 {
-	  "walletAddress":"0xawjkajekljadadfs",
-    "createdAt":"timestamp",
-    "updateAt":"time stamp",
-    "username" : "dolin",
-    "contact": "dolin@gmail.com"
+  "id": 20,
+  "walletAddress": "0x708293E197cF93bA175b0e44756142CA2589b719",
+  "username": "dolin andre serasi",
+  "contact": "asdf@gmail.com",
+  "role": "CREATOR",
+  "updatedAt": "2025-10-16T05:34:32.183Z",
+  "message": "Profile berhasil diperbarui."
 }
 ```
 
@@ -148,17 +148,18 @@ Response
 Request
 ```json
 {
-    "id":1,
-    "adminId":2
+    "id":21,
+    "adminId":6
 }
 ```
 Response
 ```json
 {
-	"id": 1,
-    "updatesAt":"adfdfsa", 
-    "role":"CREATOR",
-    "approveTocreator":true 
+  "id": 21,
+  "role": "CREATOR",
+  "approveTocreator": true,
+  "transactionHash": "0x7b06f7effd7f2135517588acbfc206749f16ff2488d3c661f3e7d281ea906761",
+  "message": "User berhasil diupdate di database. Transaksi blockchain telah dikirim."
 }
 ```
 
