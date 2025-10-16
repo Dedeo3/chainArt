@@ -38,6 +38,7 @@ export const createProfile = async (req, res) => {
         return res.status(500).json({ error: 'Terjadi kesalahan server.' });
     }
 };
+
 export const updateProfile = async (req, res) => {
     const userId = parseInt(req.params.id);
     const updateData = req.body;
@@ -57,7 +58,7 @@ export const updateProfile = async (req, res) => {
     }
 
     try {
-        // 1. Ambil data user sebelum di-update (untuk cek role dan walletAddress)
+        // Ambil data user sebelum di-update (untuk cek role dan walletAddress)
         const existingUser = await prisma.user.findUnique({
             where: { id: userId },
             select: { role: true, walletAddress: true }
@@ -67,13 +68,13 @@ export const updateProfile = async (req, res) => {
             return res.status(404).json({ error: `User dengan ID ${userId} tidak ditemukan.` });
         }
 
-        let txHash = null;
+        // let txHash = null;
 
-        // 2. Cek apakah ini adalah update username untuk seorang CREATOR
+        // Cek apakah ini adalah update username untuk seorang CREATOR
         const isCreator = existingUser.role === 'CREATOR';
         const isUpdatingUsername = 'username' in updateData;
 
-        // ** PENAMBAHAN VALIDASI ALAMAT DOMPET UNTUK CREATOR **
+        //  VALIDASI ALAMAT DOMPET UNTUK CREATOR
         if (isCreator && isUpdatingUsername) {
             const walletAddress = existingUser.walletAddress;
             // Alamat dompet Ethereum/EVM biasanya 42 karakter (0x + 40 karakter)
@@ -83,9 +84,8 @@ export const updateProfile = async (req, res) => {
                 });
             }
         }
-        // *******************************************************
 
-        // 3. OPTIMISTIC WRITE DATABASE (Dilakukan duluan)
+        // OPTIMISTIC WRITE DATABASE 
         const updatedUser = await prisma.user.update({
             where: { id: userId },
             data: updateData,
@@ -99,52 +99,52 @@ export const updateProfile = async (req, res) => {
             }
         });
 
-        // 4. KIRIM TRANSAKSI KE BLOCKCHAIN (Jika diperlukan)
-        if (isCreator && isUpdatingUsername) {
-            const newUsername = updatedUser.username;
-            console.log(`[BLOCKCHAIN] Mengirim updateCreatorName untuk: ${newUsername}`);
+        // // 4. KIRIM TRANSAKSI KE BLOCKCHAIN (Jika diperlukan)
+        // if (isCreator && isUpdatingUsername) {
+        //     const newUsername = updatedUser.username;
+        //     console.log(`[BLOCKCHAIN] Mengirim updateCreatorName untuk: ${newUsername}`);
 
-            try {
-                // Asumsi fungsi di smart contract adalah updateCreatorName
-                const tx = await contractSigner.updateCreatorName(newUsername);
-                txHash = tx.hash;
-                console.log(`Transaksi updateCreatorName berhasil dikirim. Hash: ${txHash}`);
+        //     try {
+        //         // Asumsi fungsi di smart contract adalah updateCreatorName
+        //         const tx = await contractSigner.updateCreatorName(newUsername);
+        //         txHash = tx.hash;
+        //         console.log(`Transaksi updateCreatorName berhasil dikirim. Hash: ${txHash}`);
 
-                // Jika transaksi berhasil dikirim, kembalikan respons 200 di sini
-                return res.status(200).json({
-                    ...updatedUser,
-                    message: 'Profile berhasil diperbarui, dan transaksi blockchain telah dikirim.',
-                    transactionHash: txHash
-                });
-            } catch (error) {
-                // JIKA TRANSAKSI BLOCKCHAIN GAGAL (tapi DB sudah berhasil di-update)
-                // Kita RETURN respons 202 di sini.
+        //         // Jika transaksi berhasil dikirim, kembalikan respons 200 di sini
+        //         return res.status(200).json({
+        //             ...updatedUser,
+        //             message: 'Profile berhasil diperbarui, dan transaksi blockchain telah dikirim.',
+        //             transactionHash: txHash
+        //         });
+        //     } catch (error) {
+        //         // JIKA TRANSAKSI BLOCKCHAIN GAGAL (tapi DB sudah berhasil di-update)
+        //         // Kita RETURN respons 202 di sini.
 
-                // Pengecekan spesifik untuk error Ethers
-                let blockchainError = 'Gagal mengirim transaksi updateCreatorName ke blockchain.';
-                if (error.reason) {
-                    blockchainError = `Transaksi Revert: ${error.reason}`;
-                } else if (error.code === 'INSUFFICIENT_FUNDS') {
-                    blockchainError = 'Gagal Transaksi: Dompet Admin tidak memiliki cukup Gas Fee.';
-                }
+        //         // Pengecekan spesifik untuk error Ethers
+        //         let blockchainError = 'Gagal mengirim transaksi updateCreatorName ke blockchain.';
+        //         if (error.reason) {
+        //             blockchainError = `Transaksi Revert: ${error.reason}`;
+        //         } else if (error.code === 'INSUFFICIENT_FUNDS') {
+        //             blockchainError = 'Gagal Transaksi: Dompet Admin tidak memiliki cukup Gas Fee.';
+        //         }
 
-                console.error('Error saat update nama creator di blockchain:', error);
+        //         console.error('Error saat update nama creator di blockchain:', error);
 
-                // Kembalikan error 202 (Accepted, tapi dengan warning)
-                return res.status(202).json({
-                    ...updatedUser,
-                    message: `PERINGATAN: Profile berhasil diperbarui di database, tetapi transaksi update nama di blockchain gagal.`,
-                    blockchain_error: blockchainError,
-                    note: 'Database sudah terupdate. Perlu dilakukan verifikasi atau penyesuaian manual di smart contract.'
-                });
-            }
-        }
+        //         // Kembalikan error 202 (Accepted, tapi dengan warning)
+        //         return res.status(202).json({
+        //             ...updatedUser,
+        //             message: `PERINGATAN: Profile berhasil diperbarui di database, tetapi transaksi update nama di blockchain gagal.`,
+        //             blockchain_error: blockchainError,
+        //             note: 'Database sudah terupdate. Perlu dilakukan verifikasi atau penyesuaian manual di smart contract.'
+        //         });
+        //     }
+        // }
 
-        // Response 200 (jika tidak ada update blockchain yang diperlukan)
+        // Response 200
         return res.status(200).json({
             ...updatedUser,
             message: 'Profile berhasil diperbarui.',
-            transactionHash: txHash
+            // transactionHash: txHash
         });
 
     } catch (error) {
@@ -167,8 +167,6 @@ export const updateProfile = async (req, res) => {
         return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
     }
 };
-
-
 
 export const getProfile = async (req, res) => {
     // Ambil ID dari URL dan konversi ke integer
@@ -270,307 +268,6 @@ export const getCreator = async (req, res) => {
     }
 };
 
-export const submitKarya = async (req, res) => {
-    const {
-        creator,
-        address,
-        media,
-        title,
-        category,
-        description,
-        makna,
-        authorId
-    } = req.body;
-
-    // Validasi Wajib
-    if (!creator || !media || !title || !authorId) {
-        return res.status(400).json({ error: "Data wajib (creator, media, title, authorId) harus diisi." });
-    }
-
-    
-    const parsedAuthorId = parseInt(authorId);
-    if (isNaN(parsedAuthorId)) {
-        return res.status(400).json({ error: "authorId harus berupa angka." });
-    }
-
-    try {
-        const createdKarya = await prisma.karya.create({
-            data: {
-                creator,
-                address,
-                media,
-                title,
-                category,
-                description,
-                makna,
-                authorId: parsedAuthorId,
-            },
-        });
-
-        // Ambil data Karya yang baru dibuat beserta relasi author (untuk mendapatkan walletAddress)
-        const karyaWithAuthor = await prisma.karya.findUnique({
-            where: { id: createdKarya.id },
-            include: {
-                author: {
-                    select: {
-                        walletAddress: true,
-                        contact:true,
-                    }
-                }
-            }
-        });
-
-        // Format Response
-        const responseData = {
-            id: karyaWithAuthor.id,
-            walletAddress: karyaWithAuthor.author.walletAddress,
-            contact:karyaWithAuthor.author.contact, 
-            creator: karyaWithAuthor.creator,
-            status: karyaWithAuthor.status,
-            address: karyaWithAuthor.address,
-            media: karyaWithAuthor.media,
-            title: karyaWithAuthor.title,
-            category: karyaWithAuthor.category,
-            description: karyaWithAuthor.description,
-            makna: karyaWithAuthor.makna,
-            authorId: karyaWithAuthor.authorId,
-            createdAt: karyaWithAuthor.createdAt,
-            updatedAt: karyaWithAuthor.updatedAt,
-        };
-
-        return res.status(201).json(responseData);
-
-    } catch (error) {
-        // P2003: Foreign Key Constraint Error (authorId tidak ditemukan)
-        if (error.code === 'P2003') {
-            return res.status(404).json({ error: `User (authorId: ${parsedAuthorId}) tidak ditemukan atau tidak valid.` });
-        }
-        // Penanganan error Unique Constraint P2002
-        if (error.code === 'P2002') {
-            return res.status(409).json({ error: 'Data yang Anda masukkan sudah terdaftar atau terduplikasi.' });
-        }
-
-        console.error('Error saat membuat karya:', error);
-        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
-    }
-};
-
-export const getKaryaById = async (req, res) => {
-    const karyaId = parseInt(req.params.id);
-
-    // Validasi ID
-    if (isNaN(karyaId)) {
-        return res.status(400).json({ error: 'ID Karya tidak valid atau harus berupa angka.' });
-    }
-
-    try {
-   
-        const karyaWithAuthor = await prisma.karya.findUnique({
-            where: { id: karyaId },
-            include: {
-                author: {
-                    select: {
-                        walletAddress: true,
-                        contact: true,
-                    }
-                }
-            }
-        });
-
-        // Cek jika Karya tidak ditemukan
-        if (!karyaWithAuthor) {
-            return res.status(404).json({ error: `Karya dengan ID ${karyaId} tidak ditemukan.` });
-        }
-
-        const responseData = {
-            id: karyaWithAuthor.id,
-
-            // Diambil dari relasi author
-            walletAddress: karyaWithAuthor.author.walletAddress,
-            contact: karyaWithAuthor.author.contact,
-
-            creator: karyaWithAuthor.creator,
-            status: karyaWithAuthor.status,
-            address: karyaWithAuthor.address,
-            media: karyaWithAuthor.media,
-            title: karyaWithAuthor.title,
-            category: karyaWithAuthor.category,
-            description: karyaWithAuthor.description,
-            makna: karyaWithAuthor.makna,
-            authorId: karyaWithAuthor.authorId,
-            createdAt: karyaWithAuthor.createdAt,
-            updatedAt: karyaWithAuthor.updatedAt,
-        };
-
-        return res.status(200).json(responseData);
-
-    } catch (error) {
-        console.error('Error saat mengambil karya:', error);
-        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
-    }
-};
-
-export const getPendingKarya = async (req, res) => {
-    try {
-        const pendingKaryaList = await prisma.karya.findMany({
-            where: {
-                status: 'PENDING',
-            },
-            //sertakan data author untuk mendapatkan walletAddress dan contact
-            include: {
-                author: {
-                    select: {
-                        walletAddress: true,
-                        contact: true,
-                    }
-                }
-            },
-            // Urutkan berdasarkan tanggal terbaru
-            orderBy: {
-                createdAt: 'desc',
-            }
-        });
-
-        // Format Response: Lakukan mapping untuk setiap item agar sesuai format 
-        const responseData = pendingKaryaList.map(karya => ({
-            id: karya.id,
-
-            // Data dari relasi author
-            walletAddress: karya.author.walletAddress,
-            contact: karya.author.contact,
-
-            creator: karya.creator,
-            status: karya.status,
-            address: karya.address,
-            media: karya.media,
-            title: karya.title,
-            category: karya.category,
-            description: karya.description,
-            makna: karya.makna,
-            authorId: karya.authorId,
-            createdAt: karya.createdAt,
-            updatedAt: karya.updatedAt,
-        }));
-
-        return res.status(200).json(responseData);
-
-    } catch (error) {
-        console.error('Error saat mengambil daftar karya pending:', error);
-        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
-    }
-};
-
-export const getApprovedKarya = async (req, res) => {
-    try {
-        const approvedKaryaList = await prisma.karya.findMany({
-            where: {
-                status: 'APPROVED',
-            },
-            //sertakan data author untuk mendapatkan walletAddress dan contact
-            include: {
-                author: {
-                    select: {
-                        walletAddress: true,
-                        contact: true,
-                    }
-                }
-            },
-            // Urutkan berdasarkan tanggal terbaru
-            orderBy: {
-                createdAt: 'desc',
-            }
-        });
-
-        // Format Response: Lakukan mapping untuk setiap item agar sesuai format 
-        const responseData = approvedKaryaList.map(karya => ({
-            id: karya.id,
-
-            // Data dari relasi author
-            walletAddress: karya.author.walletAddress,
-            contact: karya.author.contact,
-
-            creator: karya.creator,
-            status: karya.status,
-            address: karya.address,
-            media: karya.media,
-            title: karya.title,
-            category: karya.category,
-            description: karya.description,
-            makna: karya.makna,
-            authorId: karya.authorId,
-            createdAt: karya.createdAt,
-            updatedAt: karya.updatedAt,
-        }));
-
-        return res.status(200).json(responseData);
-
-    } catch (error) {
-        console.error('Error saat mengambil daftar karya approved:', error);
-        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
-    }
-};
-
-export const searchKaryaByTitle = async (req, res) => {
-    // Ambil query pencarian dari req.query.title (contoh: /api/karya/search?title=lukisan)
-    const searchQuery = req.query.title;
-
-    if (!searchQuery) {
-        return res.status(400).json({ error: 'Query pencarian "title" harus disediakan.' });
-    }
-
-    try {
-        const searchResults = await prisma.karya.findMany({
-            where: {
-                // Mencari title yang mengandung searchQuery. 
-                // mode: 'insensitive' membuat pencarian tidak case-sensitive (huruf besar/kecil diabaikan).
-                title: {
-                    contains: searchQuery,
-                    mode: 'insensitive',
-                },
-                status: 'APPROVED' 
-            },
-            include: {
-                author: {
-                    select: {
-                        walletAddress: true,
-                        contact: true,
-                    }
-                }
-            },
-            orderBy: {
-                createdAt: 'desc',
-            }
-        });
-
-        // 3. Format Response: Lakukan mapping untuk setiap item agar sesuai format yang diinginkan
-        const responseData = searchResults.map(karya => ({
-            id: karya.id,
-
-            // Data dari relasi author
-            walletAddress: karya.author.walletAddress,
-            contact: karya.author.contact,
-
-            creator: karya.creator,
-            status: karya.status,
-            address: karya.address,
-            media: karya.media,
-            title: karya.title,
-            category: karya.category,
-            description: karya.description,
-            makna: karya.makna,
-            authorId: karya.authorId,
-            createdAt: karya.createdAt,
-            updatedAt: karya.updatedAt,
-        }));
-        
-        return res.status(200).json(responseData);
-
-    } catch (error) {
-        console.error('Error saat mencari karya:', error);
-        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
-    }
-};
-
 export const requestCreator = async (req, res) => {
     
     const { id, approveTocreator } = req.body;
@@ -663,6 +360,12 @@ export const accToCreator = async (req, res) => {
         return res.status(400).json({ error: "ID yang diberikan tidak valid." });
     }
 
+    // Ambil data User Target
+    const targetUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { walletAddress: true, username: true, role: true, approveTocreator: true }
+    });
+
     try {
         // 1. Cek role Admin
         const adminUser = await prisma.user.findUnique({
@@ -674,17 +377,11 @@ export const accToCreator = async (req, res) => {
             return res.status(403).json({ error: 'Akses Ditolak: Hanya user dengan role ADMIN yang dapat melakukan persetujuan.' });
         }
 
-        // 2. Ambil data User Target
-        const targetUser = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { walletAddress: true, username: true, role: true, approveTocreator: true }
-        });
-
         if (!targetUser) {
             return res.status(404).json({ error: `User dengan ID ${userId} tidak ditemukan.` });
         }
 
-        // 3. Cek jika sudah menjadi CREATOR di database (menghindari duplikasi)
+        // Cek jika sudah menjadi CREATOR di database (menghindari duplikasi)
         if (targetUser.role === 'CREATOR') {
             // Sinkronkan data di DB
             const alreadyCreator = await prisma.user.update({
@@ -708,8 +405,7 @@ export const accToCreator = async (req, res) => {
             return res.status(400).json({ error: "Alamat dompet target tidak valid atau kosong." });
         }
 
-        // 4. *** PENTING: OPTIMISTIC UPDATE DATABASE DAHULU ***
-        // Kita berasumsi transaksi blockchain akan berhasil.
+        // OPTIMISTIC UPDATE DATABASE DAHULU
         console.log(`[OPTIMISTIC WRITE] Mengubah role user ${userId} menjadi CREATOR di DB.`);
         const updatedCreator = await prisma.user.update({
             where: { id: userId },
@@ -721,14 +417,13 @@ export const accToCreator = async (req, res) => {
             select: { id: true, role: true, approveTocreator: true }
         });
 
-        // 5. FIRE: EKSEKUSI TRANSAKSI BLOCKCHAIN
-        // Transaksi dikirim setelah DB di-update. Jika transaksi ini gagal, DB tidak sinkron.
+        // FIRE: EKSEKUSI TRANSAKSI BLOCKCHAIN
         console.log(`Mengirim transaksi signCreator untuk: ${walletAddress} (${username})`);
         const tx = await contractSigner.signCreator(walletAddress, username);
 
         console.log(`Transaksi signCreator berhasil dikirim. Hash: ${tx.hash}`);
 
-        // 6. Respon segera ke klien
+        // Respon segera ke klien
         return res.status(200).json({
             ...updatedCreator,
             transactionHash: tx.hash,
@@ -749,7 +444,6 @@ export const accToCreator = async (req, res) => {
 
             // LOGIKA PENTING: Jika REVERT karena sudah di-sign, ini mengonfirmasi status DB benar.
             if (error.reason.includes('Already signed')) {
-                // Di sini tidak perlu update lagi karena sudah di-update di Langkah 4.
                 return res.status(200).json({
                     id: userId,
                     walletAddress: targetUser.walletAddress,
@@ -764,8 +458,6 @@ export const accToCreator = async (req, res) => {
         }
 
         // JIKA GAGAL KARENA ERROR LAIN (selain "Already signed"), DB SUDAH TERUPDATE 
-        // DI LANGKAH 4, TETAPI TRANSAKSI BLOCKCHAIN GAGAL.
-        // DALAM KASUS INI, ANDA HARUS SECARA MANUAL MEMPERBAIKI INKONSISTENSI DATA.
         console.error('Error saat acc role creator:', error);
         return res.status(500).json({
             error: 'Terjadi kesalahan server internal.',

@@ -1,5 +1,6 @@
 import express from 'express';
-import { createProfile, updateProfile, getProfile,getCreator, getUsers, submitKarya, getKaryaById, getPendingKarya, getApprovedKarya, searchKaryaByTitle, requestCreator, getCreatorRequests, accToCreator } from '../controllers/user_controllers.js'; // Import fungsi spesifik
+import { createProfile, updateProfile, getProfile,getCreator, getUsers, requestCreator, getCreatorRequests, accToCreator } from '../controllers/user_controllers.js';
+import { submitKarya, getKaryaById, getPendingKarya, getApprovedKarya, searchKaryaByTitle } from '../controllers/karya_controllers.js'
 
 const router = express.Router();
 
