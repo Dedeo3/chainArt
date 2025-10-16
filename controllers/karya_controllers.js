@@ -24,6 +24,14 @@ export const submitKarya = async (req, res) => {
         return res.status(400).json({ error: "authorId harus berupa angka." });
     }
 
+    const creatorUser = await prisma.user.findUnique({
+        where: { id: authorId },
+        select: { role: true }
+    });
+    if(creatorUser.role != "CREATOR"){
+        return res.status(400).json({ error: "user bukan creator" });
+    }
+
     try {
         const createdKarya = await prisma.karya.create({
             data: {
@@ -344,6 +352,87 @@ export const deleteKarya= async (req, res)=>{
             }
         )
     }catch(err){
+        console.error('Error saat mencari karya:', err);
+        return res.status(500).json({ error: 'Terjadi kesalahan server internal atau request belum sesuai.' });
+    }
+}
+
+function makeid(length) {
+    var result = '';
+    var characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    var charactersLength = characters.length;
+    for (var i = 0; i < length; i++) {
+        result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    return result;
+}
+
+
+export const approveKarya= async(req, res)=>{
+    const idAdmin = req.body.adminId
+    const idKarya = req.body.idKarya
+
+    if (!idKarya || !idAdmin) {
+        res.status(404).json({
+            "messages": "request memerlukan idKarya dan adminId"
+        })
+    }
+
+    const adminUser = await prisma.user.findUnique({
+        where: { id: idAdmin },
+        select: { role: true }
+    });
+
+    const karya = await prisma.karya.findUnique({
+        where: { id: idKarya },
+        select: { title: true }
+    });
+
+    if (!karya) {
+        return res.status(403).json({ error: 'karya tidak ditemukan' });
+    }
+
+    if (!adminUser || adminUser.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Akses Ditolak: Hanya user dengan role ADMIN yang dapat melakukan penghapusan.' });
+    }
+
+    try {
+        const approve= await prisma.karya.update({
+            where:{
+                id:idKarya
+            },
+            data:{
+                verified:true,
+                status:"APPROVED",
+                hak_cipta:`HC-2025-${makeid(4)}`,
+                licency: `Creative Commons CC ${makeid(2)}-${makeid(2)}- ${ makeid(2)} 4.0`
+            },
+            select:{
+                id:true,
+                creator:true,
+                updatedAt: true,
+                hak_cipta: true,
+                licency: true,
+                verified: true,  
+                title:true,
+                media:true,
+                createdAt:true,
+                description:true,
+            }
+        })
+
+        const{title, description,media}= approve
+        console.log(`Mengirim transaksi art untuk: ${title} (${description})`);
+        const tx= await contractSigner.addArt(title,description,media)
+        console.log(`Transaksi addArt berhasil dikirim. Hash: ${tx.hash}`);
+
+        return res.status(200).json({
+            ...approve,
+            transactionHash: tx.hash,
+            message: `Karya user ${approve.creator} dengan title "${await approve.title}" berhasil di approved. Transaksi blockchain telah dikirim.`
+        });
+
+    } catch (err) {
         console.error('Error saat mencari karya:', err);
         return res.status(500).json({ error: 'Terjadi kesalahan server internal atau request belum sesuai.' });
     }

@@ -1,6 +1,6 @@
 import express from 'express';
 import { createProfile, updateProfile, getProfile,getCreator, getUsers, requestCreator, getCreatorRequests, accToCreator } from '../controllers/user_controllers.js';
-import { submitKarya, deleteKarya, getKaryaById, getPendingKarya, getApprovedKarya, searchKaryaByTitle } from '../controllers/karya_controllers.js'
+import { submitKarya, deleteKarya, approveKarya, getKaryaById, getPendingKarya, getApprovedKarya, searchKaryaByTitle } from '../controllers/karya_controllers.js'
 
 const router = express.Router();
 
@@ -26,6 +26,8 @@ router.post('/profile', createProfile);
 router.post('/submit-karya', submitKarya)
 
 router.post('/profile/creator-request', requestCreator)
+
+router.post('/karya/approved', approveKarya)
 
 // endpoint acc creator
 router.patch('/profile/creator-request', accToCreator)
