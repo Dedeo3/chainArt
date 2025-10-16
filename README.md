@@ -187,7 +187,6 @@ Response
 Request
 ```json
 {  
-    "role":"CREATOR",
     "creator":"evan",
     "address":"JL SOLO",       
     "media":"askjdfkjsa",    
@@ -201,7 +200,7 @@ Request
 Response
 ```json
 {
-	"id": 1,
+	  "id": 1,
     "role":"CREATOR",
     "hak_cipta":"null",
     "licency":"null",
@@ -302,6 +301,7 @@ Request
 ```json
 {
     "idKarya":1,
+    "adminId":5
 }
 ```
 Response
@@ -312,6 +312,7 @@ Response
     "hak_cipta":"asfdadf",
     "licency":"asdfdf",
     "verified":true,   
+    "transactionHash": "0x7b06f7effd7f2135517588acbfc206749f16ff2488d3c661f3e7d281ea906761"
 }
 ```
 
