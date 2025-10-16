@@ -220,6 +220,25 @@ Response
 }
 ```
 
+#### Reject karya
+
+```
+  DELETE api/submit-karya
+```
+Request
+```json
+{  
+    "idKarya": 1,  
+    "adminId": 6
+}
+```
+Response
+```json
+{
+	"messages":"berhasil reject" 
+}
+```
+
 #### Get karya by id
 
 ```

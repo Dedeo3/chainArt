@@ -1,7 +1,6 @@
 import { prisma } from "../util/prisma_config.js"
 import { contractSigner } from '../util/blockchain_config.js'; 
 
-
 export const submitKarya = async (req, res) => {
     const {
         creator,
@@ -138,7 +137,7 @@ export const getKaryaById = async (req, res) => {
 
     } catch (error) {
         console.error('Error saat mengambil karya:', error);
-        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
+        return res.status(500).json({ error: 'Terjadi kesalahan server internal atau request belum sesuai.' });
     }
 };
 
@@ -188,7 +187,7 @@ export const getPendingKarya = async (req, res) => {
 
     } catch (error) {
         console.error('Error saat mengambil daftar karya pending:', error);
-        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
+        return res.status(500).json({ error: 'Terjadi kesalahan server internal atau request belum sesuai.' });
     }
 };
 
@@ -238,7 +237,7 @@ export const getApprovedKarya = async (req, res) => {
 
     } catch (error) {
         console.error('Error saat mengambil daftar karya approved:', error);
-        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
+        return res.status(500).json({ error: 'Terjadi kesalahan server internal atau request belum sesuai.' });
     }
 };
 
@@ -274,7 +273,7 @@ export const searchKaryaByTitle = async (req, res) => {
             }
         });
 
-        // 3. Format Response: Lakukan mapping untuk setiap item agar sesuai format yang diinginkan
+        
         const responseData = searchResults.map(karya => ({
             id: karya.id,
 
@@ -299,6 +298,53 @@ export const searchKaryaByTitle = async (req, res) => {
 
     } catch (error) {
         console.error('Error saat mencari karya:', error);
-        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
+        return res.status(500).json({ error: 'Terjadi kesalahan server internal atau request belum sesuai.' });
     }
 };
+
+export const deleteKarya= async (req, res)=>{
+    const idAdmin= req.body.adminId
+    const idKarya= req.body.idKarya
+
+    if(!idKarya || !idAdmin){
+        res.status(404).json({
+            "messages":"request memerlukan idKarya dan adminId"
+        })
+    }
+
+    const adminUser = await prisma.user.findUnique({
+        where: { id: idAdmin },
+        select: { role: true }
+    });
+
+    const karya = await prisma.karya.findUnique({
+        where: { id: idKarya },
+        select: { title: true }
+    });
+
+    if(!karya){
+        return res.status(403).json({ error: 'karya tidak ditemukan' });
+    }
+  
+    if (!adminUser || adminUser.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Akses Ditolak: Hanya user dengan role ADMIN yang dapat melakukan penghapusan.' });
+    }
+    
+    try{
+         await prisma.karya.delete(
+          {
+                where: {
+                    id: idKarya
+                }
+          }
+        )
+        res.status(200).json(
+            {
+                messages: "berhasil reject" 
+            }
+        )
+    }catch(err){
+        console.error('Error saat mencari karya:', err);
+        return res.status(500).json({ error: 'Terjadi kesalahan server internal atau request belum sesuai.' });
+    }
+}

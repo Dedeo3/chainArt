@@ -1,6 +1,6 @@
 import express from 'express';
 import { createProfile, updateProfile, getProfile,getCreator, getUsers, requestCreator, getCreatorRequests, accToCreator } from '../controllers/user_controllers.js';
-import { submitKarya, getKaryaById, getPendingKarya, getApprovedKarya, searchKaryaByTitle } from '../controllers/karya_controllers.js'
+import { submitKarya, deleteKarya, getKaryaById, getPendingKarya, getApprovedKarya, searchKaryaByTitle } from '../controllers/karya_controllers.js'
 
 const router = express.Router();
 
@@ -32,6 +32,8 @@ router.patch('/profile/creator-request', accToCreator)
 
 // Endpoint POST /api/profile/{id} untuk update profile
 router.patch('/profile/:id', updateProfile);
+
+router.delete('/submit-karya', deleteKarya)
 
 
 export default router;
