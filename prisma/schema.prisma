@@ -64,6 +64,8 @@ model Karya {
   // Relasi ke User (creator)
   authorId Int
 
+  hash String?
+
   // Field untuk mengakses data User (relasi)
   author user @relation(fields: [authorId], references: [id])
 }

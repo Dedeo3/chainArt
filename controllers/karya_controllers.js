@@ -227,7 +227,7 @@ export const getApprovedKarya = async (req, res) => {
             // Data dari relasi author
             walletAddress: karya.author.walletAddress,
             contact: karya.author.contact,
-
+            hash: karya.hash,
             creator: karya.creator,
             status: karya.status,
             address: karya.address,
@@ -440,6 +440,8 @@ export const approveKarya = async (req, res) => {
             console.log(`Creator ${creatorWalletAddress} sudah ditandatangani. Lanjut ke penambahan Art.`);
         }
 
+         let addArtTxHash = null;
+
         // 4. Update Database (Optimistic Write - Ini cepat)
         const approve = await prisma.karya.update({
             where: { id: idKarya },
@@ -457,7 +459,7 @@ export const approveKarya = async (req, res) => {
 
         // Transaksi Blockchain (Panggil addArt - TANPA MENUNGGU KONFIRMASI)
         const { title, description, media } = karya;
-        let addArtTxHash = null;
+       
 
         console.log(`Mengirim transaksi addArt untuk: ${title} (${description})`);
 
@@ -468,8 +470,15 @@ export const approveKarya = async (req, res) => {
                 description,
                 media
             )
-           
+
             addArtTxHash = tx.hash;
+            
+            await prisma.karya.update({
+            where: { id: idKarya },
+            data: {
+              hash:addArtTxHash
+            },
+        });
             console.log(`Transaksi addArt berhasil dikirim. Hash: ${addArtTxHash}`);
 
             return res.status(200).json({
