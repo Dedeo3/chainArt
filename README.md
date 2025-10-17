@@ -301,18 +301,25 @@ Request
 ```json
 {
     "idKarya":1,
-    "adminId":5
+    "adminId":5,
+    "idCreator":1
 }
 ```
 Response
 ```json
 {
-	"id": 1,
-    "updatesAt":"adfdfsa", 
-    "hak_cipta":"asfdadf",
-    "licency":"asdfdf",
-    "verified":true,   
-    "transactionHash": "0x7b06f7effd7f2135517588acbfc206749f16ff2488d3c661f3e7d281ea906761"
+  "id": 19,
+  "creator": "dolin andre serasi",
+  "updatedAt": "2025-10-17T03:52:04.404Z",
+  "hak_cipta": "HC-2025-0OIH",
+  "licency": "Creative Commons CC 07-7R-DA 4.0",
+  "verified": true,
+  "title": "rumahku",
+  "media": "htppss",
+  "createdAt": "2025-10-17T03:31:41.220Z",
+  "description": "dolin dan andre",
+  "transactionHash": "0xd454a13c8bc7b0c961cadee32675c30c400ffad726fa31b3cc8686bf82f105e0",
+  "message": "Karya user dolin andre serasi dengan title \"rumahku\" berhasil di approved. Transaksi blockchain telah dikirim."
 }
 ```
 

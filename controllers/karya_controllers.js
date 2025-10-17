@@ -368,72 +368,138 @@ function makeid(length) {
 }
 
 
-export const approveKarya= async(req, res)=>{
-    const idAdmin = req.body.adminId
-    const idKarya = req.body.idKarya
+export const approveKarya = async (req, res) => {
+    // Konversi ke angka lebih awal untuk validasi
+    const idAdmin = parseInt(req.body.adminId);
+    const idKarya = parseInt(req.body.idKarya);
+    const idCreator = parseInt(req.body.idCreator);
 
-    if (!idKarya || !idAdmin) {
-        res.status(404).json({
-            "messages": "request memerlukan idKarya dan adminId"
-        })
-    }
-
-    const adminUser = await prisma.user.findUnique({
-        where: { id: idAdmin },
-        select: { role: true }
-    });
-
-    const karya = await prisma.karya.findUnique({
-        where: { id: idKarya },
-        select: { title: true }
-    });
-
-    if (!karya) {
-        return res.status(403).json({ error: 'karya tidak ditemukan' });
-    }
-
-    if (!adminUser || adminUser.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Akses Ditolak: Hanya user dengan role ADMIN yang dapat melakukan penghapusan.' });
+    //  Validasi ID
+    if (isNaN(idKarya) || isNaN(idAdmin) || isNaN(idCreator)) {
+        return res.status(400).json({
+            "messages": "idKarya, idCreator, dan adminId harus berupa angka yang valid."
+        });
     }
 
     try {
-        const approve= await prisma.karya.update({
-            where:{
-                id:idKarya
-            },
-            data:{
-                verified:true,
-                status:"APPROVED",
-                hak_cipta:`HC-2025-${makeid(4)}`,
-                licency: `Creative Commons CC ${makeid(2)}-${makeid(2)}- ${ makeid(2)} 4.0`
-            },
-            select:{
-                id:true,
-                creator:true,
-                updatedAt: true,
-                hak_cipta: true,
-                licency: true,
-                verified: true,  
-                title:true,
-                media:true,
-                createdAt:true,
-                description:true,
+        // Fetch data yang diperlukan secara paralel
+        const [adminUser, karya, creator] = await Promise.all([
+            prisma.user.findUnique({
+                where: { id: idAdmin },
+                select: { role: true }
+            }),
+            prisma.karya.findUnique({
+                where: { id: idKarya },
+                select: { title: true, creator: true, media: true, description: true, verified: true }
+            }),
+            prisma.user.findUnique({
+                where: { id: idCreator },
+                select: { walletAddress: true, username: true }
+            })
+        ]);
+
+        // Validasi Data
+        if (!karya) {
+            return res.status(404).json({ error: 'Karya tidak ditemukan.' });
+        }
+        if (karya.verified) {
+            return res.status(409).json({ error: 'Karya ini sudah disetujui sebelumnya.' });
+        }
+        if (!adminUser || adminUser.role !== 'ADMIN') {
+            return res.status(403).json({ error: 'Akses Ditolak: Hanya user dengan role ADMIN yang dapat melakukan persetujuan.' });
+        }
+        if (!creator || !creator.walletAddress) {
+            return res.status(400).json({ error: 'Wallet Address Creator tidak ditemukan atau tidak valid.' });
+        }
+
+        const creatorWalletAddress = creator.walletAddress;
+
+
+        // Memanggil fungsi view 'creators' dari Smart Contract untuk cek status "signed"
+        const creatorData = await contractSigner.creators(creatorWalletAddress);
+        let signTxHash = null; // Variable untuk menyimpan hash transaksi signCreator 
+
+        if (!creatorData.signed) {
+            console.log(`Creator ${creatorWalletAddress} (${creator.username}) belum ditandatangani. Admin akan mengirim transaksi signCreator terlebih dahulu.`);
+
+            try {
+                // Panggil signCreator, Admin yang menandatangani Creator
+                const signTx = await contractSigner.signCreator(creatorWalletAddress, creator.username);
+                
+                signTxHash = signTx.hash;
+                console.log(`signCreator berhasil dikirim. Hash: ${signTxHash}`);
+            } catch (signError) {
+                // Jika pengiriman signCreator gagal (misalnya, masalah estimasi gas), kembalikan error
+                console.error('Gagal saat mengirim transaksi signCreator:', signError);
+                return res.status(500).json({
+                    error: 'Gagal mengirim verifikasi Creator (signCreator) ke blockchain.',
+                    detail: signError.reason || signError.shortMessage
+                });
             }
-        })
+        } else {
+            console.log(`Creator ${creatorWalletAddress} sudah ditandatangani. Lanjut ke penambahan Art.`);
+        }
 
-        const{title, description,media}= approve
-        console.log(`Mengirim transaksi art untuk: ${title} (${description})`);
-        const tx= await contractSigner.addArt(title,description,media)
-        console.log(`Transaksi addArt berhasil dikirim. Hash: ${tx.hash}`);
-
-        return res.status(200).json({
-            ...approve,
-            transactionHash: tx.hash,
-            message: `Karya user ${approve.creator} dengan title "${await approve.title}" berhasil di approved. Transaksi blockchain telah dikirim.`
+        // 4. Update Database (Optimistic Write - Ini cepat)
+        const approve = await prisma.karya.update({
+            where: { id: idKarya },
+            data: {
+                verified: true,
+                status: "APPROVED",
+                hak_cipta: `HC-2025-${makeid(4)}`,
+                licency: `Creative Commons CC ${makeid(2)}-${makeid(2)}-${makeid(2)} 4.0`
+            },
+            select: {
+                id: true, creator: true, updatedAt: true, hak_cipta: true, licency: true, verified: true,
+                title: true, media: true, createdAt: true, description: true,
+            }
         });
 
+        // Transaksi Blockchain (Panggil addArt - TANPA MENUNGGU KONFIRMASI)
+        const { title, description, media } = karya;
+        let addArtTxHash = null;
+
+        console.log(`Mengirim transaksi addArt untuk: ${title} (${description})`);
+
+        try {
+            const tx = await contractSigner.addArt(
+                creatorWalletAddress, 
+                title,
+                description,
+                media
+            )
+           
+            addArtTxHash = tx.hash;
+            console.log(`Transaksi addArt berhasil dikirim. Hash: ${addArtTxHash}`);
+
+            return res.status(200).json({
+                ...approve,
+                // signTransactionHash: signTxHash, 
+                addArtTransactionHash: addArtTxHash, 
+                message: `Karya berhasil di approved di database. Transaksi blockchain telah dikirim dan sedang menunggu konfirmasi.`
+            });
+
+        } catch (error) {
+            // Penanganan Error Transaksi addArt
+            let blockchainError = (error.reason && error.reason !== "unknown") ? `Transaksi Revert: ${error.reason}` : 'Gagal mengirim transaksi addArt ke blockchain.';
+
+            console.error('Error saat mengirim transaksi addArt:', error);
+
+            return res.status(202).json({
+                ...approve,
+                message: `PERINGATAN: Karya berhasil di approved di database, tetapi transaksi addArt GAGAL dikirim.`,
+                blockchain_error: blockchainError,
+                note: 'Silakan cek konsol server untuk detail error blockchain. Status DB terupdate, namun status blockchain masih Tertunda/Gagal.'
+            });
+        }
+
     } catch (err) {
-        console.error('Error saat mencari karya:', err);
-        return res.status(500).json({ error: 'Terjadi kesalahan server internal atau request belum sesuai.' });
+        // Penanganan Error Prisma
+        if (err.code === 'P2025') {
+            return res.status(404).json({ error: `User/Karya dengan ID tersebut tidak ditemukan.` });
+        }
+
+        console.error('Error server/prisma:', err);
+        return res.status(500).json({ error: 'Terjadi kesalahan server internal.' });
     }
 }

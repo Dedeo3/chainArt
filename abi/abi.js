@@ -147,6 +147,11 @@ export const ChainArtABI = [
     {
         "inputs": [
             {
+                "internalType": "address",
+                "name": "_creator",
+                "type": "address"
+            },
+            {
                 "internalType": "string",
                 "name": "_title",
                 "type": "string"
@@ -257,6 +262,11 @@ export const ChainArtABI = [
     },
     {
         "inputs": [
+            {
+                "internalType": "address",
+                "name": "_creator",
+                "type": "address"
+            },
             {
                 "internalType": "uint256",
                 "name": "_artId",
@@ -465,6 +475,11 @@ export const ChainArtABI = [
     {
         "inputs": [
             {
+                "internalType": "address",
+                "name": "_creator",
+                "type": "address"
+            },
+            {
                 "internalType": "uint256",
                 "name": "_artId",
                 "type": "uint256"
@@ -493,6 +508,11 @@ export const ChainArtABI = [
     {
         "inputs": [
             {
+                "internalType": "address",
+                "name": "_creator",
+                "type": "address"
+            },
+            {
                 "internalType": "string",
                 "name": "_name",
                 "type": "string"
@@ -503,4 +523,4 @@ export const ChainArtABI = [
         "stateMutability": "nonpayable",
         "type": "function"
     }
-];
+]
