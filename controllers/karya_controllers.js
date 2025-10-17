@@ -105,16 +105,30 @@ export const getKaryaById = async (req, res) => {
     try {
 
         const karyaWithAuthor = await prisma.karya.findUnique({
-            where: { id: karyaId },
-            include: {
-                author: {
-                    select: {
-                        walletAddress: true,
-                        contact: true,
-                    }
-                }
+    where: { id: karyaId },
+    select: {
+        id: true, // Pastikan Anda memilih semua kolom yang Anda butuhkan
+        hash: true,
+        creator: true,
+        status: true,
+        address: true,
+        media: true,
+        title: true,
+        category: true,
+        description: true,
+        makna: true,
+        authorId: true,
+        createdAt: true,
+        updatedAt: true,
+        // Menyertakan relasi author di dalam select
+        author: {
+            select: {
+                walletAddress: true,
+                contact: true,
             }
-        });
+        }
+    }
+});
 
         // Cek jika Karya tidak ditemukan
         if (!karyaWithAuthor) {
@@ -127,7 +141,7 @@ export const getKaryaById = async (req, res) => {
             // Diambil dari relasi author
             walletAddress: karyaWithAuthor.author.walletAddress,
             contact: karyaWithAuthor.author.contact,
-
+            hash:karyaWithAuthor.hash,
             creator: karyaWithAuthor.creator,
             status: karyaWithAuthor.status,
             address: karyaWithAuthor.address,
